@@ -30,8 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — use explicit names, NOT wildcard
+.env
+.env.local
+.env*.local
+
+# SQLite — NEVER commit
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 
 # vercel
 .vercel

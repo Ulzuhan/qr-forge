@@ -1,0 +1,58 @@
+import { db } from "@/db";
+import { qrCodes } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
+import { EditQrForm } from "../../components/EditQrForm";
+
+export const dynamic = "force-dynamic";
+
+async function getQr(id: string) {
+  const [qr] = await db
+    .select()
+    .from(qrCodes)
+    .where(eq(qrCodes.id, id))
+    .limit(1);
+  return qr ?? null;
+}
+
+export default async function EditQrPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const qr = await getQr(id);
+  if (!qr) notFound();
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Edit QR</h1>
+        <p className="text-muted-foreground mt-1">
+          <span className="font-mono">{qr.id}</span> — change anything. The QR
+          image stays the same.
+        </p>
+      </div>
+      <div className="p-4 rounded-md bg-primary/10 border border-primary/30 mb-6 text-sm">
+        <strong>💡 Tip:</strong> Cambias la URL destino y los QRs que ya
+        imprimiste apuntan al nuevo destino. Magia.
+      </div>
+      <EditQrForm
+        qr={{
+          id: qr.id,
+          type: qr.type,
+          staticKind: qr.staticKind,
+          title: qr.title,
+          description: qr.description,
+          destinationUrl: qr.destinationUrl ?? "",
+          staticPayload: qr.staticPayload,
+          campaign: qr.campaign,
+          isActive: qr.isActive,
+          expiresAt: qr.expiresAt
+            ? new Date(qr.expiresAt).toISOString().slice(0, 16)
+            : "",
+        }}
+      />
+    </div>
+  );
+}
