@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
 
   const result = await authenticate(body.email, body.password);
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error, code: result.code },
+      { status: result.status }
+    );
   }
 
   resetLimit(key);

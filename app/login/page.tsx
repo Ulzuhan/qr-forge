@@ -13,5 +13,5 @@ export default async function LoginPage({
   if (await currentUser()) redirect("/");
   const { next } = await searchParams;
 
-  return <AuthForm mode="login" next={next} registrationOpen={registrationOpen()} />;
+  return <AuthForm mode="login" next={next} registrationOpen={await registrationOpen()} />;
 }

@@ -17,21 +17,43 @@
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, eq, lt } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users, type User } from "@/db/schema";
 
 export const SESSION_COOKIE = "qrforge_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
 
-// ─── Registro abierto o cerrado ──────────────────────────────────────
+// ─── Política de altas ──────────────────────────────────────────────
 /**
- * QRFORGE_REGISTRATION=closed deja el servicio solo para las cuentas que ya
- * existen. Por defecto está abierto: el servicio se publica para que otra gente
- * lo use, y cada cuenta solo alcanza sus propios QRs.
+ * Qué hace esta instancia cuando alguien pide cuenta:
+ *
+ *   approval  (por defecto) cualquiera puede pedirla; el admin decide
+ *   open      cualquiera se registra y entra en el acto
+ *   closed    no se admiten cuentas nuevas
+ *
+ * Un ajuste con tres valores y no un booleano, porque "cerrado" y "hay que
+ * aprobarlo" son respuestas distintas a la misma pregunta.
  */
-export function registrationOpen(): boolean {
-  return (process.env.QRFORGE_REGISTRATION ?? "open").trim().toLowerCase() !== "closed";
+export type RegistrationMode = "closed" | "approval" | "open";
+
+export function registrationMode(): RegistrationMode {
+  const raw = process.env.QRFORGE_REGISTRATION?.trim().toLowerCase();
+  if (raw === "open" || raw === "approval" || raw === "closed") return raw;
+  return "approval";
+}
+
+/** Si merece la pena enseñar el formulario de alta. */
+export async function registrationOpen(): Promise<boolean> {
+  // La primera cuenta se admite siempre, o una instalación nueva no se podría
+  // poner en marcha nunca.
+  if ((await userCount()) === 0) return true;
+  return registrationMode() !== "closed";
+}
+
+async function userCount(): Promise<number> {
+  const [row] = await db.select({ n: sql<number>`count(*)` }).from(users);
+  return Number(row?.n ?? 0);
 }
 
 // ─── Email y contraseña ─────────────────────────────────────────────
@@ -146,6 +168,8 @@ export async function currentUser(): Promise<User | null> {
     await db.delete(sessions).where(eq(sessions.id, tokenId(token)));
     return null;
   }
+  // Una sesión abierta no sobrevive a que le retiren la aprobación.
+  if (!isApproved(row.user)) return null;
   return row.user;
 }
 
@@ -180,7 +204,7 @@ export async function apiUser(): Promise<
 // ─── Alta y acceso ──────────────────────────────────────────────────
 export type AuthResult =
   | { ok: true; user: User }
-  | { ok: false; error: string; status: number };
+  | { ok: false; error: string; status: number; code?: string };
 
 export async function registerUser(
   rawEmail: string,
@@ -202,17 +226,76 @@ export async function registerUser(
     return { ok: false, error: "There is already an account with that email", status: 409 };
   }
 
+  // La primera cuenta manda: es el admin y entra sin que nadie la apruebe
+  // (no habría quien lo hiciera). El resto depende del modo.
+  const isFirst = (await userCount()) === 0;
+  const now = new Date();
+
   const [user] = await db
     .insert(users)
     .values({
       id: randomUUID(),
       email,
       passwordHash: hashPassword(password),
-      createdAt: new Date(),
+      createdAt: now,
+      role: isFirst ? "admin" : "user",
+      approvedAt: isFirst || registrationMode() === "open" ? now : null,
     })
     .returning();
 
   return { ok: true, user };
+}
+
+// ─── Aprobaciones ───────────────────────────────────────────────────
+export const isAdmin = (user: User | null): boolean => user?.role === "admin";
+export const isApproved = (user: User): boolean => user.approvedAt != null;
+
+/** Solicitudes esperando al admin, la más antigua primero. */
+export async function pendingUsers() {
+  return db
+    .select({ id: users.id, email: users.email, createdAt: users.createdAt })
+    .from(users)
+    .where(isNull(users.approvedAt))
+    .orderBy(asc(users.createdAt));
+}
+
+/** Cuentas ya admitidas, para la lista del admin. */
+export async function approvedUsers() {
+  return db
+    .select({
+      id: users.id,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+      approvedAt: users.approvedAt,
+    })
+    .from(users)
+    .where(sql`${users.approvedAt} is not null`)
+    .orderBy(asc(users.createdAt));
+}
+
+export async function approveUser(userId: string): Promise<boolean> {
+  const rows = await db
+    .update(users)
+    .set({ approvedAt: new Date() })
+    .where(and(eq(users.id, userId), isNull(users.approvedAt)))
+    .returning({ id: users.id });
+  return rows.length > 0;
+}
+
+/**
+ * Rechaza una solicitud borrando la cuenta.
+ *
+ * Solo alcanza cuentas que nunca se aprobaron, así que no hay nada suyo que
+ * perder — y libera el email por si se equivocaron al escribirlo y quieren
+ * volver a intentarlo.
+ */
+export async function rejectUser(userId: string): Promise<boolean> {
+  const rows = await db
+    .delete(users)
+    .where(and(eq(users.id, userId), isNull(users.approvedAt)))
+    .returning({ id: users.id });
+  return rows.length > 0;
 }
 
 export async function authenticate(
@@ -237,6 +320,18 @@ export async function authenticate(
     return wrong;
   }
   if (!verifyPassword(password, user.passwordHash)) return wrong;
+
+  // Contraseña correcta pero la cuenta aún no está admitida. Se distingue del
+  // error de credenciales a propósito: quien pidió cuenta necesita saber que su
+  // contraseña está bien y que lo que falta es que la aprueben.
+  if (!isApproved(user)) {
+    return {
+      ok: false,
+      error: "Your account is still waiting for approval",
+      status: 403,
+      code: "pending_approval",
+    };
+  }
 
   return { ok: true, user };
 }

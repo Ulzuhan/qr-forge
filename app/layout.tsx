@@ -27,7 +27,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await currentUser();
-  const canRegister = registrationOpen();
+  const canRegister = await registrationOpen();
 
   return (
     <html
@@ -60,7 +60,7 @@ export default async function RootLayout({
                     <span className="sm:hidden">+ New</span>
                     <span className="hidden sm:inline">+ New QR</span>
                   </Link>
-                  <UserMenu email={user.email} />
+                  <UserMenu email={user.email} isAdmin={user.role === "admin"} />
                 </>
               ) : (
                 <>

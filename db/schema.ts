@@ -11,6 +11,17 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
+  /** "admin" o "user". La primera cuenta que existe se queda de admin. */
+  role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
+  /**
+   * Cuándo se dejó entrar a esta cuenta. NULL = solicitud esperando al admin.
+   *
+   * En la propia fila y no en una tabla de solicitudes aparte: una cuenta
+   * pendiente ya es una cuenta real, con su contraseña cifrada y su email
+   * reservado, y mantener media-cuenta en otro sitio significaría dos lugares
+   * donde acertar con el manejo de contraseñas.
+   */
+  approvedAt: integer("approved_at", { mode: "timestamp" }),
 });
 
 // Sesiones — con estado en DB (no cookie firmada) para poder revocarlas:

@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { registerUser, registrationOpen, startSession } from "@/lib/auth";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/ratelimit";
 
-// POST /api/auth/register — alta de cuenta. Entra directamente tras registrarse.
+/**
+ * POST /api/auth/register — pide cuenta.
+ *
+ * Según el modo de la instancia la cuenta queda admitida al momento (y se entra)
+ * o esperando a que el administrador la apruebe. La primera cuenta que existe
+ * siempre entra, y de admin: si no, no habría quien aprobase a nadie.
+ */
 export async function POST(request: NextRequest) {
-  if (!registrationOpen()) {
+  if (!(await registrationOpen())) {
     return NextResponse.json(
       { error: "Sign-ups are closed on this instance" },
       { status: 403 }
@@ -29,6 +35,11 @@ export async function POST(request: NextRequest) {
   const result = await registerUser(body.email, body.password);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  // Pendiente de aprobación: no se abre sesión porque no hay a dónde entrar.
+  if (result.user.approvedAt == null) {
+    return NextResponse.json({ pending: true }, { status: 202 });
   }
 
   await startSession(result.user.id);

@@ -39,6 +39,8 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // El alta quedó pedida y esperando al admin: no hay sesión ni a dónde ir.
+  const [requested, setRequested] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,6 +52,13 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+
+      // 202: cuenta creada pero pendiente de aprobación.
+      if (res.status === 202) {
+        setRequested(true);
+        return;
+      }
+
       if (res.ok) {
         // refresh() además de push(): el layout y el dashboard se renderizan en
         // el servidor y tienen que volver a leerse ya con la sesión puesta.
@@ -65,6 +74,26 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (requested) {
+    return (
+      <div className="mx-auto w-full max-w-sm px-4 py-12 text-center sm:py-20">
+        <p className="text-4xl">📮</p>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight">Request sent</h1>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          Your account is waiting for the administrator to let it in. Once it is
+          approved you can sign in with the password you just chose — nothing
+          else to do here.
+        </p>
+        <Link
+          href="/"
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-md border border-border px-6 text-sm font-medium transition-colors hover:bg-muted"
+        >
+          Back to the start
+        </Link>
+      </div>
+    );
   }
 
   return (

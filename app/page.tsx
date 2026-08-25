@@ -16,7 +16,7 @@ export default async function Home() {
   const baseUrl = await publicBaseUrl();
 
   if (!user) {
-    return <Landing baseUrl={baseUrl} canRegister={registrationOpen()} />;
+    return <Landing baseUrl={baseUrl} canRegister={await registrationOpen()} />;
   }
 
   return (

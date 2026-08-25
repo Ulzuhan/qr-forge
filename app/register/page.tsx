@@ -8,7 +8,7 @@ export default async function RegisterPage() {
   if (await currentUser()) redirect("/");
   // Con el registro cerrado no hay página de alta: se manda al login, que ya
   // explica que está cerrado.
-  if (!registrationOpen()) redirect("/login");
+  if (!(await registrationOpen())) redirect("/login");
 
   return <AuthForm mode="register" />;
 }
