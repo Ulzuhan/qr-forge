@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { useBaseUrl } from "./BaseUrlConfig";
 
 type Props = {
   /** Slug del QR (se combinará con baseUrl para dynamic) */
   slug?: string;
   /** Payload literal (para static, no se modifica) */
   payload?: string;
+  /** URL pública, decidida en el servidor (ver lib/public-url.ts). */
+  baseUrl?: string;
   size?: number;
   className?: string;
   fgColor?: string;
@@ -23,6 +24,7 @@ type Props = {
 export function QrPreview({
   slug,
   payload,
+  baseUrl,
   size = 256,
   className = "",
   fgColor = "#000000",
@@ -30,7 +32,6 @@ export function QrPreview({
   level = "M",
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const baseUrl = useBaseUrl();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,8 +63,8 @@ export function QrPreview({
   return (
     <div
       ref={ref}
-      className={className}
-      style={{ width: size, height: size }}
+      className={`aspect-square w-full [&>svg]:h-full [&>svg]:w-full ${className}`}
+      style={{ maxWidth: size }}
     />
   );
 }
@@ -72,21 +73,23 @@ export function QrPreview({
  * Descarga el QR como PNG o SVG.
  */
 export async function downloadQr(
-  identifier: { slug?: string; payload?: string },
+  identifier: { slug?: string; payload?: string; baseUrl?: string },
   filename: string,
   format: "png" | "svg" = "png",
-  options: { fgColor?: string; bgColor?: string; size?: number; baseUrl?: string } = {}
+  options: { fgColor?: string; bgColor?: string; size?: number } = {}
 ) {
-  const {
-    fgColor = "#000000",
-    bgColor = "#ffffff",
-    size = 1024,
-    baseUrl = typeof window !== "undefined" ? window.location.origin : "",
-  } = options;
+  const { fgColor = "#000000", bgColor = "#ffffff", size = 1024 } = options;
+
+  // La base venía por defecto de window.location.origin, ignorando la que
+  // estaba configurada: el PNG descargado podía codificar una URL distinta a la
+  // de la vista previa, y eso acaba impreso. Ahora es la misma o no se descarga.
+  if (!identifier.payload && !identifier.baseUrl) {
+    throw new Error("downloadQr: falta baseUrl para un QR dinámico");
+  }
 
   const value = identifier.payload
     ? identifier.payload
-    : `${baseUrl}/r/${identifier.slug}`;
+    : `${identifier.baseUrl}/r/${identifier.slug}`;
 
   if (format === "svg") {
     const svg = await QRCode.toString(value, {

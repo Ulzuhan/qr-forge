@@ -1,8 +1,12 @@
 import { NewQrForm } from "../components/NewQrForm";
+import { requireUser } from "@/lib/auth";
 
-export const dynamic = "force-static";
+// Comprueba la sesión, así que se resuelve por petición (antes era estática).
+export const dynamic = "force-dynamic";
 
-export default function NewQrPage() {
+export default async function NewQrPage() {
+  await requireUser("/new");
+
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-3xl font-bold tracking-tight">Create new QR</h1>

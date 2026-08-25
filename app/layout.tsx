@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
-import { BaseUrlConfig } from "./components/BaseUrlConfig";
+import { currentUser } from "@/lib/auth";
+import { UserMenu } from "./components/UserMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,11 +21,13 @@ export const metadata: Metadata = {
     "Create dynamic, editable QR codes with scan tracking. Self-hosted.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await currentUser();
+
   return (
     <html
       lang="en"
@@ -32,32 +35,38 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <header className="border-b border-border bg-card/50 backdrop-blur sticky top-0 z-10">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 group">
-              <span className="text-2xl">⚡</span>
-              <span className="font-bold text-lg group-hover:text-primary transition-colors">
+          {/* min-w-0 en el contenedor y shrink-0 en las acciones: el título cede
+              espacio antes que los botones, que es lo que se pulsa. El widget de
+              "Base URL" que vivía aquí desbordaba la cabecera en móvil (dejaba
+              "+ New QR" fuera de la pantalla) y ya no hace falta: la URL pública
+              la decide el servidor. */}
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+            <Link href="/" className="flex min-w-0 items-center gap-2 group">
+              <span className="text-2xl leading-none">⚡</span>
+              <span className="truncate font-bold text-lg group-hover:text-primary transition-colors">
                 QR-Forge
               </span>
             </Link>
-            <nav className="flex items-center gap-2 text-sm">
-              <BaseUrlConfig />
-              <Link
-                href="/"
-                className="px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/new"
-                className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
-              >
-                + New QR
-              </Link>
-            </nav>
+
+            {user && (
+              <nav className="ml-auto flex shrink-0 items-center gap-2 text-sm">
+                <Link
+                  href="/new"
+                  className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  {/* En móvil no cabe el texto completo junto al menú. */}
+                  <span className="sm:hidden">+ New</span>
+                  <span className="hidden sm:inline">+ New QR</span>
+                </Link>
+                <UserMenu email={user.email} />
+              </nav>
+            )}
           </div>
         </header>
+
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground">
+
+        <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground">
           QR-Forge · self-hosted · no analytics, no tracking beyond your logs
         </footer>
       </body>

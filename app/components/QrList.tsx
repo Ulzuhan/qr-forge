@@ -21,7 +21,7 @@ type QrWithCount = {
   scanCount: number;
 };
 
-async function getQrs(): Promise<QrWithCount[]> {
+async function getQrs(userId: string): Promise<QrWithCount[]> {
   const rows = await db
     .select({
       id: qrCodes.id,
@@ -40,6 +40,7 @@ async function getQrs(): Promise<QrWithCount[]> {
     })
     .from(qrCodes)
     .leftJoin(qrScans, eq(qrScans.qrId, qrCodes.id))
+    .where(eq(qrCodes.userId, userId))
     .groupBy(qrCodes.id)
     .orderBy(desc(qrCodes.createdAt));
   return rows as QrWithCount[];
@@ -64,8 +65,14 @@ const STATIC_ICONS: Record<string, string> = {
   text: "📝",
 };
 
-export async function QrList() {
-  const qrs = await getQrs();
+export async function QrList({
+  userId,
+  baseUrl,
+}: {
+  userId: string;
+  baseUrl: string;
+}) {
+  const qrs = await getQrs(userId);
 
   if (qrs.length === 0) {
     return (
@@ -101,6 +108,7 @@ export async function QrList() {
               <QrThumbnail
                 slug={isStatic ? undefined : qr.id}
                 payload={isStatic ? qr.staticPayload ?? undefined : undefined}
+                baseUrl={baseUrl}
                 size={140}
               />
               <span className="absolute top-2 left-2 text-[10px] px-1.5 py-0.5 rounded bg-black/70 text-white font-mono uppercase">
@@ -135,7 +143,7 @@ export async function QrList() {
                 )}
                 <span>created {timeAgo(qr.createdAt)}</span>
               </div>
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
                 {isStatic ? (
                   <>
                     <Link

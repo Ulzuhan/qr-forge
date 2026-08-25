@@ -7,22 +7,28 @@ import {
   validateStaticPayload,
   type StaticKind,
 } from "@/lib/qr";
+import { apiUser } from "@/lib/auth";
+import { and } from "drizzle-orm";
+
+// Un QR ajeno responde 404, no 403: un 403 confirmaría que ese slug existe.
+const notFound = () => NextResponse.json({ error: "QR not found" }, { status: 404 });
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await apiUser();
+  if (!auth.user) return auth.response;
+
   try {
     const { id } = await params;
     const [qr] = await db
       .select()
       .from(qrCodes)
-      .where(eq(qrCodes.id, id))
+      .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, auth.user.id)))
       .limit(1);
 
-    if (!qr) {
-      return NextResponse.json({ error: "QR not found" }, { status: 404 });
-    }
+    if (!qr) return notFound();
     return NextResponse.json({ qr });
   } catch (error) {
     console.error("[GET /api/qr/[id]]", error);
@@ -34,6 +40,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await apiUser();
+  if (!auth.user) return auth.response;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -50,11 +59,9 @@ export async function PATCH(
     const [existing] = await db
       .select()
       .from(qrCodes)
-      .where(eq(qrCodes.id, id))
+      .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, auth.user.id)))
       .limit(1);
-    if (!existing) {
-      return NextResponse.json({ error: "QR not found" }, { status: 404 });
-    }
+    if (!existing) return notFound();
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -102,7 +109,10 @@ export async function PATCH(
       updates.staticPayload = staticPayload;
     }
 
-    await db.update(qrCodes).set(updates).where(eq(qrCodes.id, id));
+    await db
+      .update(qrCodes)
+      .set(updates)
+      .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, auth.user.id)));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[PATCH /api/qr/[id]]", error);
@@ -114,17 +124,21 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await apiUser();
+  if (!auth.user) return auth.response;
+
   try {
     const { id } = await params;
     const [existing] = await db
       .select({ id: qrCodes.id })
       .from(qrCodes)
-      .where(eq(qrCodes.id, id))
+      .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, auth.user.id)))
       .limit(1);
-    if (!existing) {
-      return NextResponse.json({ error: "QR not found" }, { status: 404 });
-    }
-    await db.delete(qrCodes).where(eq(qrCodes.id, id));
+    if (!existing) return notFound();
+
+    await db
+      .delete(qrCodes)
+      .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, auth.user.id)));
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[DELETE /api/qr/[id]]", error);

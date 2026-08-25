@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { qrCodes, qrScans } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { apiUser } from "@/lib/auth";
 
 // GET /api/qr/[id]/stats — devuelve stats agregadas de un QR
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await apiUser();
+  if (!auth.user) return auth.response;
+
   try {
     const { id } = await params;
 
+    // Las estadísticas de un QR ajeno responden 404 igual que uno inexistente.
     const [qr] = await db
       .select()
       .from(qrCodes)
-      .where(eq(qrCodes.id, id))
+      .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, auth.user.id)))
       .limit(1);
     if (!qr) {
       return NextResponse.json({ error: "QR not found" }, { status: 404 });

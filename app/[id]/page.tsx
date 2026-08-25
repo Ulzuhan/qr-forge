@@ -1,8 +1,10 @@
 import { db } from "@/db";
 import { qrCodes, qrScans } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { requireUser } from "@/lib/auth";
+import { publicBaseUrl, shortUrl } from "@/lib/public-url";
 import { QrPreview } from "../components/QrPreview";
 import { CopyButton } from "../components/CopyButton";
 import { StatusToggle } from "../components/StatusToggle";
@@ -10,11 +12,12 @@ import { DownloadBtn } from "../components/DownloadBtn";
 
 export const dynamic = "force-dynamic";
 
-async function getQrWithStats(id: string) {
+async function getQrWithStats(id: string, userId: string) {
+  // Acotado al dueño: un QR ajeno da 404, igual que uno inexistente.
   const [qr] = await db
     .select()
     .from(qrCodes)
-    .where(eq(qrCodes.id, id))
+    .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, userId)))
     .limit(1);
   if (!qr) return null;
 
@@ -72,7 +75,9 @@ export default async function QrDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getQrWithStats(id);
+  const user = await requireUser(`/${id}`);
+  const baseUrl = await publicBaseUrl();
+  const data = await getQrWithStats(id, user.id);
   if (!data) notFound();
 
   const { qr, total, daily, countries, recent } = data;
@@ -81,24 +86,28 @@ export default async function QrDetailPage({
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-      <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">← All QRs</Link>
         <span>/</span>
         <span className="text-foreground font-mono">{qr.id}</span>
-        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground font-mono uppercase">
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-foreground font-mono uppercase">
           {isStatic
             ? `${STATIC_ICONS[qr.staticKind ?? ""] ?? "•"} ${qr.staticKind ?? "static"}`
             : "⚡ dynamic"}
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+      {/* minmax(0,1fr) en vez de 1fr: con 1fr la columna de stats no puede
+          encoger por debajo de su contenido y la tabla de escaneos empujaba la
+          página a lo ancho. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
         {/* Left: QR + actions */}
         <div className="space-y-4">
           <div className="p-4 bg-white rounded-lg flex flex-col items-center">
             <QrPreview
               slug={isStatic ? undefined : qr.id}
               payload={isStatic ? qr.staticPayload ?? undefined : undefined}
+              baseUrl={baseUrl}
               size={260}
             />
             <p className="text-xs text-zinc-600 mt-3 font-mono text-center break-all max-w-full px-2">
@@ -128,11 +137,14 @@ export default async function QrDetailPage({
               <div className="flex gap-2">
                 <input
                   readOnly
-                  value={`/r/${qr.id}`}
-                  className="flex-1 px-3 py-2 text-sm rounded-md bg-muted border border-border font-mono"
+                  value={shortUrl(baseUrl, qr.id)}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs"
                 />
-                <CopyButton text={`/r/${qr.id}`} />
+                <CopyButton text={shortUrl(baseUrl, qr.id)} />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Es lo que codifica el QR. No cambia aunque cambies el destino.
+              </p>
             </div>
           )}
           <div className="flex gap-2">
@@ -143,8 +155,8 @@ export default async function QrDetailPage({
               </>
             ) : (
               <>
-                <DownloadBtn slug={qr.id} id={qr.id} format="png" />
-                <DownloadBtn slug={qr.id} id={qr.id} format="svg" />
+                <DownloadBtn slug={qr.id} baseUrl={baseUrl} id={qr.id} format="png" />
+                <DownloadBtn slug={qr.id} baseUrl={baseUrl} id={qr.id} format="svg" />
               </>
             )}
           </div>

@@ -9,9 +9,13 @@ import {
   validateStaticPayload,
   type StaticKind,
 } from "@/lib/qr";
+import { apiUser } from "@/lib/auth";
 
-// GET /api/qr — lista todos los QRs con conteo de scans
+// GET /api/qr — lista los QRs del usuario con su conteo de scans
 export async function GET() {
+  const auth = await apiUser();
+  if (!auth.user) return auth.response;
+
   try {
     const rows = await db
       .select({
@@ -31,6 +35,7 @@ export async function GET() {
       })
       .from(qrCodes)
       .leftJoin(qrScans, eq(qrScans.qrId, qrCodes.id))
+      .where(eq(qrCodes.userId, auth.user.id))
       .groupBy(qrCodes.id)
       .orderBy(desc(qrCodes.createdAt));
 
@@ -46,6 +51,9 @@ export async function GET() {
 
 // POST /api/qr — crear un QR nuevo (dynamic o static)
 export async function POST(request: NextRequest) {
+  const auth = await apiUser();
+  if (!auth.user) return auth.response;
+
   try {
     const body = await request.json();
     const {
@@ -111,6 +119,8 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      // Sin acotar por usuario a propósito: el slug vive en la URL pública
+      // /r/<slug>, así que es único para toda la instancia.
       const [existing] = await db
         .select({ id: qrCodes.id })
         .from(qrCodes)
@@ -135,6 +145,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     await db.insert(qrCodes).values({
       id: slug,
+      userId: auth.user.id,
       type: type as "dynamic" | "static",
       title: title.trim(),
       description: description?.trim() || null,

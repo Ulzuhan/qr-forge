@@ -1,16 +1,18 @@
 import { db } from "@/db";
 import { qrCodes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { EditQrForm } from "../../components/EditQrForm";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-async function getQr(id: string) {
+async function getQr(id: string, userId: string) {
+  // Acotado al dueño: editar un QR ajeno da 404, no un formulario.
   const [qr] = await db
     .select()
     .from(qrCodes)
-    .where(eq(qrCodes.id, id))
+    .where(and(eq(qrCodes.id, id), eq(qrCodes.userId, userId)))
     .limit(1);
   return qr ?? null;
 }
@@ -21,7 +23,8 @@ export default async function EditQrPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const qr = await getQr(id);
+  const user = await requireUser(`/${id}/edit`);
+  const qr = await getQr(id, user.id);
   if (!qr) notFound();
 
   return (
