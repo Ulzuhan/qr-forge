@@ -13,11 +13,11 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Petición inválida" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
   if (typeof body.email !== "string" || typeof body.password !== "string") {
-    return NextResponse.json({ error: "Email y contraseña requeridos" }, { status: 400 });
+    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
   }
 
   const result = await authenticate(body.email, body.password);

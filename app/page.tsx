@@ -1,12 +1,23 @@
 import { QrList } from "./components/QrList";
-import { requireUser } from "@/lib/auth";
+import { Landing } from "./components/Landing";
+import { currentUser, registrationOpen } from "@/lib/auth";
 import { publicBaseUrl } from "@/lib/public-url";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * La puerta de entrada, decidida en el servidor: quien no ha entrado ve la
+ * landing (sin JavaScript de cliente), y quien tiene sesión va directo a sus
+ * QRs. Antes esto redirigía al login, que para un desconocido es una puerta
+ * cerrada sin explicar qué hay dentro.
+ */
 export default async function Home() {
-  const user = await requireUser();
+  const user = await currentUser();
   const baseUrl = await publicBaseUrl();
+
+  if (!user) {
+    return <Landing baseUrl={baseUrl} canRegister={registrationOpen()} />;
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">

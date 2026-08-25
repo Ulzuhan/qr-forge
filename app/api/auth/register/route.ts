@@ -6,7 +6,7 @@ import { clientIp, rateLimit, tooManyRequests } from "@/lib/ratelimit";
 export async function POST(request: NextRequest) {
   if (!registrationOpen()) {
     return NextResponse.json(
-      { error: "El registro está cerrado en esta instancia" },
+      { error: "Sign-ups are closed on this instance" },
       { status: 403 }
     );
   }
@@ -19,11 +19,11 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Petición inválida" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
   if (typeof body.email !== "string" || typeof body.password !== "string") {
-    return NextResponse.json({ error: "Email y contraseña requeridos" }, { status: 400 });
+    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
   }
 
   const result = await registerUser(body.email, body.password);

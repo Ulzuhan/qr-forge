@@ -23,7 +23,7 @@ export function DownloadBtn({ slug, payload, baseUrl, id, format }: Props) {
       await downloadQr({ slug, payload, baseUrl }, `qr-${id}`, format);
     } catch (error) {
       console.error("[download]", error);
-      alert("No se ha podido generar el archivo");
+      alert("Could not generate the file");
     } finally {
       setBusy(false);
     }

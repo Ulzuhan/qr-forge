@@ -64,7 +64,7 @@ export function clientIp(request: Request): string {
 
 export function tooManyRequests(limit: LimitResult): Response {
   return Response.json(
-    { error: "Demasiados intentos. Prueba de nuevo en un momento." },
+    { error: "Too many attempts. Try again in a moment." },
     { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
   );
 }

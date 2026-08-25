@@ -51,10 +51,10 @@ export const MAX_PASSWORD_LENGTH = 512;
 
 export function passwordProblem(password: string): string | null {
   if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-    return `La contraseña necesita al menos ${MIN_PASSWORD_LENGTH} caracteres`;
+    return `The password needs at least ${MIN_PASSWORD_LENGTH} characters`;
   }
   if (password.length > MAX_PASSWORD_LENGTH) {
-    return "Contraseña demasiado larga";
+    return "That password is too long";
   }
   return null;
 }
@@ -188,7 +188,7 @@ export async function registerUser(
 ): Promise<AuthResult> {
   const email = normalizeEmail(rawEmail);
   if (!isValidEmail(email)) {
-    return { ok: false, error: "Email no válido", status: 400 };
+    return { ok: false, error: "That email does not look right", status: 400 };
   }
   const problem = passwordProblem(password);
   if (problem) return { ok: false, error: problem, status: 400 };
@@ -199,7 +199,7 @@ export async function registerUser(
     .where(eq(users.email, email))
     .limit(1);
   if (existing) {
-    return { ok: false, error: "Ya existe una cuenta con ese email", status: 409 };
+    return { ok: false, error: "There is already an account with that email", status: 409 };
   }
 
   const [user] = await db
@@ -229,7 +229,7 @@ export async function authenticate(
 
   // Mismo mensaje exista o no la cuenta: distinguirlos convierte el login en un
   // buscador de emails registrados.
-  const wrong = { ok: false as const, error: "Email o contraseña incorrectos", status: 401 };
+  const wrong = { ok: false as const, error: "Wrong email or password", status: 401 };
   if (!user) {
     // Se calcula un hash igualmente, para que "usuario inexistente" no responda
     // notablemente más rápido que "contraseña incorrecta".

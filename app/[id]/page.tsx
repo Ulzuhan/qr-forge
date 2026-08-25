@@ -143,7 +143,7 @@ export default async function QrDetailPage({
                 <CopyButton text={shortUrl(baseUrl, qr.id)} />
               </div>
               <p className="text-xs text-muted-foreground">
-                Es lo que codifica el QR. No cambia aunque cambies el destino.
+                This is what the QR encodes. It stays the same when you change the destination.
               </p>
             </div>
           )}

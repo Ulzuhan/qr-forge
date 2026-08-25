@@ -14,18 +14,18 @@ type Props = {
 
 const COPY = {
   login: {
-    title: "Entrar",
-    subtitle: "Tus QRs, tus estadísticas.",
-    submit: "Entrar",
-    working: "Entrando…",
+    title: "Welcome back",
+    subtitle: "Your codes and your scans, where you left them.",
+    submit: "Sign in",
+    working: "Signing in…",
     endpoint: "/api/auth/login",
     autoComplete: "current-password",
   },
   register: {
-    title: "Crear cuenta",
-    subtitle: "Gratis, y tus QRs solo los ves tú.",
-    submit: "Crear cuenta",
-    working: "Creando…",
+    title: "Create your account",
+    subtitle: "Free, and nobody else sees your codes.",
+    submit: "Create account",
+    working: "Creating…",
     endpoint: "/api/auth/register",
     autoComplete: "new-password",
   },
@@ -58,10 +58,10 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
         return;
       }
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "No se ha podido completar");
+      setError(data.error ?? "That did not work");
       setPassword("");
     } catch {
-      setError("Error de red");
+      setError("Network error");
     } finally {
       setBusy(false);
     }
@@ -97,7 +97,7 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
 
         <div className="space-y-1.5">
           <label htmlFor="password" className="block text-sm font-medium">
-            Contraseña
+            Password
           </label>
           <input
             id="password"
@@ -112,7 +112,7 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
           />
           {mode === "register" && (
             <p id="password-hint" className="text-xs text-muted-foreground">
-              Mínimo 10 caracteres.
+              At least 10 characters.
             </p>
           )}
         </div>
@@ -139,19 +139,19 @@ export function AuthForm({ mode, next, registrationOpen = true }: Props) {
         {mode === "login" ? (
           registrationOpen ? (
             <>
-              ¿No tienes cuenta?{" "}
+              No account yet?{" "}
               <Link href="/register" className="text-primary hover:underline">
-                Crear una
+                Create one
               </Link>
             </>
           ) : (
-            "El registro está cerrado en esta instancia."
+            "Sign-ups are closed on this instance."
           )
         ) : (
           <>
-            ¿Ya tienes cuenta?{" "}
+            Already have an account?{" "}
             <Link href="/login" className="text-primary hover:underline">
-              Entrar
+              Sign in
             </Link>
           </>
         )}

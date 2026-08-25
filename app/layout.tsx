@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
-import { currentUser } from "@/lib/auth";
+import { currentUser, registrationOpen } from "@/lib/auth";
 import { UserMenu } from "./components/UserMenu";
 
 const geistSans = Geist({
@@ -27,6 +27,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await currentUser();
+  const canRegister = registrationOpen();
 
   return (
     <html
@@ -48,19 +49,38 @@ export default async function RootLayout({
               </span>
             </Link>
 
-            {user && (
-              <nav className="ml-auto flex shrink-0 items-center gap-2 text-sm">
-                <Link
-                  href="/new"
-                  className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  {/* En móvil no cabe el texto completo junto al menú. */}
-                  <span className="sm:hidden">+ New</span>
-                  <span className="hidden sm:inline">+ New QR</span>
-                </Link>
-                <UserMenu email={user.email} />
-              </nav>
-            )}
+            <nav className="ml-auto flex shrink-0 items-center gap-2 text-sm">
+              {user ? (
+                <>
+                  <Link
+                    href="/new"
+                    className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    {/* En móvil no cabe el texto completo junto al menú. */}
+                    <span className="sm:hidden">+ New</span>
+                    <span className="hidden sm:inline">+ New QR</span>
+                  </Link>
+                  <UserMenu email={user.email} />
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Sign in
+                  </Link>
+                  {canRegister && (
+                    <Link
+                      href="/register"
+                      className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    >
+                      Sign up
+                    </Link>
+                  )}
+                </>
+              )}
+            </nav>
           </div>
         </header>
 
