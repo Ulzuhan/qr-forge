@@ -1,0 +1,123 @@
+/**
+ * Cliente OIDC contra Authentik (flujo de código de autorización con PKCE).
+ *
+ * Escrito a mano y sin dependencias: son unas pocas peticiones bien definidas,
+ * y añadir una librería de autenticación entera para esto traería más
+ * superficie que código propio.
+ *
+ * Dos direcciones distintas del mismo Authentik, a propósito:
+ *
+ *   PÚBLICA   la que se manda al navegador (auth.kaicorplabs.com). Tiene que
+ *             ser alcanzable desde el móvil de quien entra.
+ *   INTERNA   la que usa este servidor para canjear el código y pedir los datos
+ *             del usuario (127.0.0.1). Ahorra dar la vuelta por internet para
+ *             hablar con un proceso que está en la misma máquina.
+ *
+ * El token de identidad NO se verifica criptográficamente: se obtiene del
+ * endpoint de token en una llamada directa servidor-a-servidor, que es el caso
+ * en el que la propia especificación (OIDC Core 3.1.3.7) permite saltarse la
+ * comprobación de firma. Los datos del usuario se leen además de /userinfo.
+ */
+import { createHash, randomBytes } from "crypto";
+
+export interface OidcConfig {
+  publicBase: string;
+  internalBase: string;
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
+export function oidcConfig(): OidcConfig | null {
+  const clientId = process.env.QRFORGE_OIDC_CLIENT_ID?.trim();
+  const clientSecret = process.env.QRFORGE_OIDC_CLIENT_SECRET?.trim();
+  const publicBase = (process.env.QRFORGE_OIDC_PUBLIC_BASE ?? "https://auth.kaicorplabs.com").replace(/\/+$/, "");
+  const internalBase = (process.env.QRFORGE_OIDC_INTERNAL_BASE ?? "http://127.0.0.1:9100").replace(/\/+$/, "");
+  const redirectUri = process.env.QRFORGE_OIDC_REDIRECT_URI?.trim();
+
+  if (!clientId || !clientSecret || !redirectUri) return null;
+  return { publicBase, internalBase, clientId, clientSecret, redirectUri };
+}
+
+/** Si falta configuración, la aplicación no puede dejar entrar a nadie. */
+export function oidcConfigured(): boolean {
+  return oidcConfig() !== null;
+}
+
+const APP_PATH = "/application/o";
+
+export function authorizeUrl(
+  cfg: OidcConfig,
+  { state, codeChallenge }: { state: string; codeChallenge: string }
+): string {
+  const url = new URL(`${cfg.publicBase}${APP_PATH}/authorize/`);
+  url.searchParams.set("client_id", cfg.clientId);
+  url.searchParams.set("redirect_uri", cfg.redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "openid email profile");
+  url.searchParams.set("state", state);
+  url.searchParams.set("code_challenge", codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  return url.toString();
+}
+
+export function endSessionUrl(cfg: OidcConfig, returnTo: string): string {
+  const url = new URL(`${cfg.publicBase}${APP_PATH}/qr-forge/end-session/`);
+  url.searchParams.set("post_logout_redirect_uri", returnTo);
+  return url.toString();
+}
+
+// ─── PKCE ───────────────────────────────────────────────────────────
+export function newVerifier(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export function challengeFor(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+// ─── Intercambio de código por identidad ────────────────────────────
+export interface OidcIdentity {
+  sub: string;
+  email: string;
+  name?: string;
+}
+
+export async function exchangeCode(
+  cfg: OidcConfig,
+  { code, verifier }: { code: string; verifier: string }
+): Promise<OidcIdentity> {
+  const res = await fetch(`${cfg.internalBase}${APP_PATH}/token/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: cfg.redirectUri,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      code_verifier: verifier,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`token endpoint: ${res.status} ${await res.text().catch(() => "")}`);
+  }
+
+  const tokens = (await res.json()) as { access_token?: string };
+  if (!tokens.access_token) throw new Error("token endpoint: sin access_token");
+
+  const info = await fetch(`${cfg.internalBase}${APP_PATH}/userinfo/`, {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+  if (!info.ok) {
+    throw new Error(`userinfo: ${info.status}`);
+  }
+
+  const claims = (await info.json()) as { sub?: string; email?: string; name?: string };
+  if (!claims.sub || !claims.email) {
+    throw new Error("userinfo: faltan sub o email");
+  }
+
+  return { sub: claims.sub, email: claims.email.toLowerCase(), name: claims.name };
+}

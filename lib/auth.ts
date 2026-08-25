@@ -1,113 +1,34 @@
 /**
- * QR-Forge — cuentas de usuario y sesiones.
+ * QR-Forge — sesiones locales sobre identidades de Authentik.
  *
  * Modelo de acceso:
  *
- *   PÚBLICO         /r/[slug]
- *                   Es el endpoint que codifican los QR impresos: tiene que
- *                   funcionar para cualquiera, siempre, sin sesión. Es lo único
- *                   público de la aplicación.
+ *   PÚBLICO         /r/[slug] y la portada sin sesión
+ *                   El redirect es lo que codifican los QR impresos: tiene que
+ *                   funcionar para cualquiera, siempre, sin sesión.
  *
  *   AUTENTICADO     el resto (dashboard, crear, editar, stats, /api/qr/*)
- *                   y además ACOTADO POR DUEÑO: cada usuario ve solo sus QRs.
+ *                   y ACOTADO POR DUEÑO: cada cuenta ve solo sus QRs.
+ *
+ * Aquí ya no hay contraseñas, altas ni aprobaciones: de eso se encarga
+ * Authentik, que además solo emite tokens para quien esté en el grupo de esta
+ * aplicación. Lo que queda es la sesión propia — una cookie cuyo hash vive en
+ * la base de datos, para poder revocarla — y el espejo local del usuario.
  *
  * La autorización se comprueba dentro de cada ruta y página, no en un
  * middleware: un único punto de control es un único punto de olvido.
  */
-import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, asc, eq, isNull, lt, sql } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users, type User } from "@/db/schema";
+import type { OidcIdentity } from "@/lib/oidc";
 
 export const SESSION_COOKIE = "qrforge_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
 
-// ─── Política de altas ──────────────────────────────────────────────
-/**
- * Qué hace esta instancia cuando alguien pide cuenta:
- *
- *   approval  (por defecto) cualquiera puede pedirla; el admin decide
- *   open      cualquiera se registra y entra en el acto
- *   closed    no se admiten cuentas nuevas
- *
- * Un ajuste con tres valores y no un booleano, porque "cerrado" y "hay que
- * aprobarlo" son respuestas distintas a la misma pregunta.
- */
-export type RegistrationMode = "closed" | "approval" | "open";
-
-export function registrationMode(): RegistrationMode {
-  const raw = process.env.QRFORGE_REGISTRATION?.trim().toLowerCase();
-  if (raw === "open" || raw === "approval" || raw === "closed") return raw;
-  return "approval";
-}
-
-/** Si merece la pena enseñar el formulario de alta. */
-export async function registrationOpen(): Promise<boolean> {
-  // La primera cuenta se admite siempre, o una instalación nueva no se podría
-  // poner en marcha nunca.
-  if ((await userCount()) === 0) return true;
-  return registrationMode() !== "closed";
-}
-
-async function userCount(): Promise<number> {
-  const [row] = await db.select({ n: sql<number>`count(*)` }).from(users);
-  return Number(row?.n ?? 0);
-}
-
-// ─── Email y contraseña ─────────────────────────────────────────────
-export function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
-}
-
-export function isValidEmail(email: string): boolean {
-  // Deliberadamente laxa: la validación seria de un email es enviarle un correo.
-  // Esto solo descarta lo que no puede serlo.
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
-}
-
-/** Mínimos de contraseña. Longitud antes que reglas de composición. */
-export const MIN_PASSWORD_LENGTH = 10;
-export const MAX_PASSWORD_LENGTH = 512;
-
-export function passwordProblem(password: string): string | null {
-  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-    return `The password needs at least ${MIN_PASSWORD_LENGTH} characters`;
-  }
-  if (password.length > MAX_PASSWORD_LENGTH) {
-    return "That password is too long";
-  }
-  return null;
-}
-
-export function hashPassword(
-  password: string,
-  salt = randomBytes(16).toString("hex")
-): string {
-  const derived = scryptSync(password.normalize("NFKC"), salt, 64).toString("hex");
-  return `scrypt$${salt}$${derived}`;
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const [scheme, salt, expected] = stored.split("$");
-  if (scheme !== "scrypt" || !salt || !expected) return false;
-
-  let derived: Buffer;
-  try {
-    derived = scryptSync(password.normalize("NFKC"), salt, 64);
-  } catch {
-    return false;
-  }
-
-  const expectedBuf = Buffer.from(expected, "hex");
-  // Comparación en tiempo constante: una normal filtra el hash byte a byte
-  // a través del tiempo de respuesta.
-  if (derived.length !== expectedBuf.length) return false;
-  return timingSafeEqual(derived, expectedBuf);
-}
-
-// ─── Sesiones ───────────────────────────────────────────────────────
 /** Lo que se guarda en la DB es el hash del token, nunca el token. */
 function tokenId(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -123,6 +44,46 @@ const cookieOptions = {
   maxAge: Math.floor(SESSION_TTL_MS / 1000),
 };
 
+// ─── Identidad ──────────────────────────────────────────────────────
+/**
+ * Trae al usuario que corresponde a una identidad de Authentik, creándolo la
+ * primera vez. La búsqueda es por `sub` y no por email: cambiar de correo en el
+ * proveedor no debe convertir a alguien en otra persona ni dejarle sin sus QRs.
+ */
+export async function upsertUser(identity: OidcIdentity): Promise<User> {
+  const now = new Date();
+
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.oidcSub, identity.sub))
+    .limit(1);
+
+  if (existing) {
+    // El email y el nombre son del proveedor: se refrescan en cada entrada.
+    const [updated] = await db
+      .update(users)
+      .set({ email: identity.email, name: identity.name ?? null, lastSeenAt: now })
+      .where(eq(users.id, existing.id))
+      .returning();
+    return updated;
+  }
+
+  const [created] = await db
+    .insert(users)
+    .values({
+      id: randomUUID(),
+      oidcSub: identity.sub,
+      email: identity.email,
+      name: identity.name ?? null,
+      createdAt: now,
+      lastSeenAt: now,
+    })
+    .returning();
+  return created;
+}
+
+// ─── Sesiones ───────────────────────────────────────────────────────
 export async function startSession(userId: string): Promise<void> {
   const token = randomBytes(32).toString("hex");
   await db.insert(sessions).values({
@@ -168,19 +129,17 @@ export async function currentUser(): Promise<User | null> {
     await db.delete(sessions).where(eq(sessions.id, tokenId(token)));
     return null;
   }
-  // Una sesión abierta no sobrevive a que le retiren la aprobación.
-  if (!isApproved(row.user)) return null;
   return row.user;
 }
 
 /**
- * Para páginas: devuelve el usuario o manda al login. `next` conserva a dónde
- * iba, para volver ahí después de entrar.
+ * Para páginas: devuelve el usuario o lo manda a entrar. `next` conserva a
+ * dónde iba, para volver ahí después.
  */
 export async function requireUser(next?: string): Promise<User> {
   const user = await currentUser();
   if (!user) {
-    redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login");
+    redirect(next ? `/api/auth/login?next=${encodeURIComponent(next)}` : "/api/auth/login");
   }
   return user;
 }
@@ -199,144 +158,4 @@ export async function apiUser(): Promise<
     };
   }
   return { user };
-}
-
-// ─── Alta y acceso ──────────────────────────────────────────────────
-export type AuthResult =
-  | { ok: true; user: User }
-  | { ok: false; error: string; status: number; code?: string };
-
-export async function registerUser(
-  rawEmail: string,
-  password: string
-): Promise<AuthResult> {
-  const email = normalizeEmail(rawEmail);
-  if (!isValidEmail(email)) {
-    return { ok: false, error: "That email does not look right", status: 400 };
-  }
-  const problem = passwordProblem(password);
-  if (problem) return { ok: false, error: problem, status: 400 };
-
-  const [existing] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
-  if (existing) {
-    return { ok: false, error: "There is already an account with that email", status: 409 };
-  }
-
-  // La primera cuenta manda: es el admin y entra sin que nadie la apruebe
-  // (no habría quien lo hiciera). El resto depende del modo.
-  const isFirst = (await userCount()) === 0;
-  const now = new Date();
-
-  const [user] = await db
-    .insert(users)
-    .values({
-      id: randomUUID(),
-      email,
-      passwordHash: hashPassword(password),
-      createdAt: now,
-      role: isFirst ? "admin" : "user",
-      approvedAt: isFirst || registrationMode() === "open" ? now : null,
-    })
-    .returning();
-
-  return { ok: true, user };
-}
-
-// ─── Aprobaciones ───────────────────────────────────────────────────
-export const isAdmin = (user: User | null): boolean => user?.role === "admin";
-export const isApproved = (user: User): boolean => user.approvedAt != null;
-
-/** Solicitudes esperando al admin, la más antigua primero. */
-export async function pendingUsers() {
-  return db
-    .select({ id: users.id, email: users.email, createdAt: users.createdAt })
-    .from(users)
-    .where(isNull(users.approvedAt))
-    .orderBy(asc(users.createdAt));
-}
-
-/** Cuentas ya admitidas, para la lista del admin. */
-export async function approvedUsers() {
-  return db
-    .select({
-      id: users.id,
-      email: users.email,
-      role: users.role,
-      createdAt: users.createdAt,
-      approvedAt: users.approvedAt,
-    })
-    .from(users)
-    .where(sql`${users.approvedAt} is not null`)
-    .orderBy(asc(users.createdAt));
-}
-
-export async function approveUser(userId: string): Promise<boolean> {
-  const rows = await db
-    .update(users)
-    .set({ approvedAt: new Date() })
-    .where(and(eq(users.id, userId), isNull(users.approvedAt)))
-    .returning({ id: users.id });
-  return rows.length > 0;
-}
-
-/**
- * Rechaza una solicitud borrando la cuenta.
- *
- * Solo alcanza cuentas que nunca se aprobaron, así que no hay nada suyo que
- * perder — y libera el email por si se equivocaron al escribirlo y quieren
- * volver a intentarlo.
- */
-export async function rejectUser(userId: string): Promise<boolean> {
-  const rows = await db
-    .delete(users)
-    .where(and(eq(users.id, userId), isNull(users.approvedAt)))
-    .returning({ id: users.id });
-  return rows.length > 0;
-}
-
-export async function authenticate(
-  rawEmail: string,
-  password: string
-): Promise<AuthResult> {
-  const email = normalizeEmail(rawEmail);
-
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
-
-  // Mismo mensaje exista o no la cuenta: distinguirlos convierte el login en un
-  // buscador de emails registrados.
-  const wrong = { ok: false as const, error: "Wrong email or password", status: 401 };
-  if (!user) {
-    // Se calcula un hash igualmente, para que "usuario inexistente" no responda
-    // notablemente más rápido que "contraseña incorrecta".
-    hashPassword(password);
-    return wrong;
-  }
-  if (!verifyPassword(password, user.passwordHash)) return wrong;
-
-  // Contraseña correcta pero la cuenta aún no está admitida. Se distingue del
-  // error de credenciales a propósito: quien pidió cuenta necesita saber que su
-  // contraseña está bien y que lo que falta es que la aprueben.
-  if (!isApproved(user)) {
-    return {
-      ok: false,
-      error: "Your account is still waiting for approval",
-      status: 403,
-      code: "pending_approval",
-    };
-  }
-
-  return { ok: true, user };
-}
-
-/** Cierra todas las sesiones de un usuario (cambio de contraseña, sospecha). */
-export async function revokeAllSessions(userId: string): Promise<void> {
-  await db.delete(sessions).where(and(eq(sessions.userId, userId)));
 }

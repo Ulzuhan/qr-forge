@@ -12,10 +12,14 @@ dónde apunta.
 
 ## Acceso
 
-Cada cuenta ve y gestiona **solo sus propios QR**. Hay registro abierto
-(`/register`) y login (`/login`); las contraseñas se guardan con scrypt y la
-sesión es una cookie cuyo hash vive en la base de datos, así que se puede
-revocar. Ver `lib/auth.ts`.
+Las cuentas viven en **Authentik** (`auth.kaicorplabs.com`), no aquí: entrar es
+un flujo OIDC (`lib/oidc.ts`), y quién puede entrar lo decide el proveedor, que
+solo emite tokens para quien esté en el grupo `qr-forge`. Pedir cuenta y que la
+aprueben ocurre allí. Esta aplicación solo guarda un espejo de la identidad
+(`users.oidc_sub`) para poder decir de quién es cada QR, y su propia sesión —
+una cookie cuyo hash vive en la base de datos, revocable. Ver `lib/auth.ts`.
+
+Cada cuenta ve y gestiona **solo sus propios QR**.
 
 Lo único público es **`/r/<slug>`**: es lo que codifican los QR impresos y tiene
 que funcionar para cualquiera, siempre, sin sesión. Todo lo demás exige sesión y
@@ -27,7 +31,10 @@ confirmar que ese slug existe.
 | Variable | Para qué |
 |---|---|
 | `QRFORGE_PUBLIC_URL` | URL pública desde la que se sirve (ej. `https://qr.kaicorplabs.com`). **Es lo que se imprime en los QR**: fíjala en producción, o un QR generado desde localhost o desde la VPN llevará esa URL privada al papel. Sin ella se deduce de la petición. |
-| `QRFORGE_REGISTRATION` | `open` (por defecto) o `closed` para no admitir cuentas nuevas. |
+| `QRFORGE_OIDC_CLIENT_ID` / `_SECRET` | Credenciales del cliente OIDC en Authentik. Sin ellas nadie puede entrar. |
+| `QRFORGE_OIDC_REDIRECT_URI` | Debe coincidir con una de las registradas en el proveedor. |
+| `QRFORGE_OIDC_PUBLIC_BASE` | Authentik tal como lo ve el navegador (`https://auth.kaicorplabs.com`). |
+| `QRFORGE_OIDC_INTERNAL_BASE` | Authentik tal como lo ve este servidor (`http://127.0.0.1:9100`): canjear el código no necesita dar la vuelta por internet. |
 | `QRFORGE_DB_PATH` | Ruta del SQLite (por defecto `./qrforge.db`). |
 
 ## Desarrollo
@@ -43,7 +50,7 @@ En producción corre como servicio de usuario systemd (`qr-forge.service`, puert
 
 ## Base de datos
 
-SQLite con Drizzle. `users` · `sessions` · `qr_codes` (con `user_id`) ·
-`qr_scans`. Las claves foráneas van en cascada, pero SQLite solo las aplica si
+SQLite con Drizzle. `users` (espejo de la identidad de Authentik) · `sessions` ·
+`qr_codes` (con `user_id`) · `qr_scans`. Las claves foráneas van en cascada, pero SQLite solo las aplica si
 la conexión activa `PRAGMA foreign_keys = ON` — la app lo hace (`db/index.ts`);
 el CLI `sqlite3` **no**, así que un `DELETE FROM users` a mano deja huérfanos.

@@ -1,6 +1,6 @@
 import { QrList } from "./components/QrList";
 import { Landing } from "./components/Landing";
-import { currentUser, registrationOpen } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { publicBaseUrl } from "@/lib/public-url";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function Home() {
   const baseUrl = await publicBaseUrl();
 
   if (!user) {
-    return <Landing baseUrl={baseUrl} canRegister={await registrationOpen()} />;
+    return <Landing baseUrl={baseUrl} />;
   }
 
   return (

@@ -11,13 +11,7 @@ import QRCode from "qrcode";
  * El QR de la demo es de verdad, generado aquí mismo y escaneable: apunta a
  * esta misma página. Enseñar el producto funcionando dice más que describirlo.
  */
-export async function Landing({
-  baseUrl,
-  canRegister,
-}: {
-  baseUrl: string;
-  canRegister: boolean;
-}) {
+export async function Landing({ baseUrl }: { baseUrl: string }) {
   const demoQr = await QRCode.toString(baseUrl, {
     type: "svg",
     margin: 0,
@@ -44,23 +38,11 @@ export async function Landing({
             </p>
 
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
-              {canRegister && (
-                <Link
-                  href="/register"
-                  className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
-                  Create a free account
-                </Link>
-              )}
               <Link
-                href="/login"
-                className={`inline-flex h-12 items-center justify-center rounded-md px-7 text-base font-medium transition-colors ${
-                  canRegister
-                    ? "border border-border hover:bg-muted"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90"
-                }`}
+                href="/api/auth/login"
+                className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Sign in
+                Sign in or request an account
               </Link>
             </div>
           </div>
@@ -127,14 +109,15 @@ export async function Landing({
             Make your first QR in about a minute
           </h2>
           <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-muted-foreground text-pretty">
-            Your codes are yours: nobody else who uses this instance can see
-            them, and there is no analytics company in the middle.
+            Accounts are approved by hand, so this stays a small place. Your
+            codes are yours: nobody else who uses this instance can see them,
+            and there is no analytics company in the middle.
           </p>
           <Link
-            href={canRegister ? "/register" : "/login"}
+            href="/api/auth/login"
             className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            {canRegister ? "Create a free account" : "Sign in"}
+            Get started
             <span aria-hidden>→</span>
           </Link>
         </div>

@@ -1,34 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticate, startSession } from "@/lib/auth";
-import { clientIp, rateLimit, resetLimit, tooManyRequests } from "@/lib/ratelimit";
+import { authorizeUrl, challengeFor, newVerifier, oidcConfig } from "@/lib/oidc";
 
-// POST /api/auth/login
-export async function POST(request: NextRequest) {
-  // Fuerza bruta: 10 intentos por IP cada 15 minutos.
-  const key = `login:${clientIp(request)}`;
-  const limit = rateLimit(key, 10, 15 * 60 * 1000);
-  if (!limit.allowed) return tooManyRequests(limit);
+/**
+ * GET /api/auth/login — arranca la entrada contra Authentik.
+ *
+ * Guarda en una cookie efímera el verificador de PKCE, el estado anti-CSRF y a
+ * dónde volver. Va en cookie y no en sesión de servidor porque todavía no hay
+ * sesión: esto ocurre antes de saber quién es quien llama.
+ */
+export const dynamic = "force-dynamic";
 
-  let body: { email?: unknown; password?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  }
-
-  if (typeof body.email !== "string" || typeof body.password !== "string") {
-    return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
-  }
-
-  const result = await authenticate(body.email, body.password);
-  if (!result.ok) {
+export async function GET(request: NextRequest) {
+  const cfg = oidcConfig();
+  if (!cfg) {
     return NextResponse.json(
-      { error: result.error, code: result.code },
-      { status: result.status }
+      { error: "Sign-in is not configured on this instance" },
+      { status: 503 }
     );
   }
 
-  resetLimit(key);
-  await startSession(result.user.id);
-  return NextResponse.json({ ok: true, email: result.user.email });
+  const verifier = newVerifier();
+  const state = newVerifier();
+
+  // Solo rutas internas: sin esto, un enlace con ?next=https://otro-sitio
+  // convertiría el login en un redirector hacia donde quisiera el atacante.
+  const raw = request.nextUrl.searchParams.get("next") ?? "/";
+  const next = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+
+  const response = NextResponse.redirect(
+    authorizeUrl(cfg, { state, codeChallenge: challengeFor(verifier) })
+  );
+  response.cookies.set("qrforge_oidc", JSON.stringify({ verifier, state, next }), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    // "lax" no basta: Authentik nos devuelve con una navegación de otro sitio,
+    // y con "strict" el navegador no mandaría esta cookie en esa vuelta.
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60,
+  });
+  return response;
 }

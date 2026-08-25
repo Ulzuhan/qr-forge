@@ -1,27 +1,27 @@
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
-// Usuarios — cada uno ve y gestiona SOLO sus propios QRs.
+// Usuarios — espejo local de la identidad que gestiona Authentik.
+//
+// No hay contraseñas ni estados de aprobación: eso vive en el proveedor de
+// identidad, que solo emite tokens para quien esté en el grupo de esta
+// aplicación. Aquí solo se guarda lo justo para poder decir "este QR es de
+// esta persona" y para enseñar quién ha iniciado sesión.
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
-  // Siempre en minúsculas y sin espacios (ver normalizeEmail en lib/auth.ts):
-  // así "Manu@X.com" y "manu@x.com" no pueden ser dos cuentas distintas.
-  email: text("email").notNull().unique(),
-  // Formato scrypt$<salt_hex>$<hash_hex>. Nunca la contraseña en claro.
-  passwordHash: text("password_hash").notNull(),
+  /**
+   * El identificador estable que da Authentik (claim `sub`). La identidad es
+   * esto y no el email: alguien puede cambiar de correo y seguir siendo el
+   * mismo dueño de sus QRs.
+   */
+  oidcSub: text("oidc_sub").notNull().unique(),
+  email: text("email").notNull(),
+  name: text("name"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
-  /** "admin" o "user". La primera cuenta que existe se queda de admin. */
-  role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
-  /**
-   * Cuándo se dejó entrar a esta cuenta. NULL = solicitud esperando al admin.
-   *
-   * En la propia fila y no en una tabla de solicitudes aparte: una cuenta
-   * pendiente ya es una cuenta real, con su contraseña cifrada y su email
-   * reservado, y mantener media-cuenta en otro sitio significaría dos lugares
-   * donde acertar con el manejo de contraseñas.
-   */
-  approvedAt: integer("approved_at", { mode: "timestamp" }),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
 
 // Sesiones — con estado en DB (no cookie firmada) para poder revocarlas:

@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 /**
  * Cuenta actual y salida. En pantallas anchas se ve el email; en móvil solo la
  * inicial dentro de un círculo, que es lo que cabe al lado del botón de crear.
  */
-export function UserMenu({ email, isAdmin }: { email: string; isAdmin?: boolean }) {
+export function UserMenu({ email }: { email: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,7 +53,7 @@ export function UserMenu({ email, isAdmin }: { email: string; isAdmin?: boolean 
           {email[0]}
         </span>
         <span className="hidden max-w-[14ch] truncate lg:inline">{email}</span>
-        <span className="sr-only">Cuenta</span>
+        <span className="sr-only">Account</span>
       </button>
 
       {open && (
@@ -66,16 +65,6 @@ export function UserMenu({ email, isAdmin }: { email: string; isAdmin?: boolean 
             {email}
           </p>
           <div className="my-1 border-t border-border" />
-          {isAdmin && (
-            <Link
-              role="menuitem"
-              href="/admin"
-              onClick={() => setOpen(false)}
-              className="block rounded px-3 py-2 text-sm transition-colors hover:bg-muted"
-            >
-              Accounts
-            </Link>
-          )}
           <button
             role="menuitem"
             onClick={logout}

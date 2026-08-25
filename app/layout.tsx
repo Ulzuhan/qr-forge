@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
-import { currentUser, registrationOpen } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { UserMenu } from "./components/UserMenu";
 
 const geistSans = Geist({
@@ -27,7 +27,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await currentUser();
-  const canRegister = await registrationOpen();
 
   return (
     <html
@@ -60,25 +59,15 @@ export default async function RootLayout({
                     <span className="sm:hidden">+ New</span>
                     <span className="hidden sm:inline">+ New QR</span>
                   </Link>
-                  <UserMenu email={user.email} isAdmin={user.role === "admin"} />
+                  <UserMenu email={user.email} />
                 </>
               ) : (
-                <>
-                  <Link
-                    href="/login"
-                    className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    Sign in
-                  </Link>
-                  {canRegister && (
-                    <Link
-                      href="/register"
-                      className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                    >
-                      Sign up
-                    </Link>
-                  )}
-                </>
+                <Link
+                  href="/api/auth/login"
+                  className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Sign in
+                </Link>
               )}
             </nav>
           </div>
