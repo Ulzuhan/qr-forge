@@ -90,12 +90,14 @@ export function NewQrForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="qr-editor space-y-5">
       {/* Tabs */}
-      <div className="inline-flex rounded-md border border-border bg-muted p-1">
+      <div className="qr-type-switch inline-flex rounded-md border border-border bg-muted p-1" role="tablist" aria-label="QR type">
         <button
           type="button"
           onClick={() => setTab("dynamic")}
+          role="tab"
+          aria-selected={tab === "dynamic"}
           className={`px-4 py-1.5 text-sm rounded transition-colors ${
             tab === "dynamic"
               ? "bg-card text-foreground shadow"
@@ -107,6 +109,8 @@ export function NewQrForm() {
         <button
           type="button"
           onClick={() => setTab("static")}
+          role="tab"
+          aria-selected={tab === "static"}
           className={`px-4 py-1.5 text-sm rounded transition-colors ${
             tab === "static"
               ? "bg-card text-foreground shadow"
@@ -118,7 +122,7 @@ export function NewQrForm() {
       </div>
 
       {tab === "static" && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="qr-kind-grid grid grid-cols-2 sm:grid-cols-4 gap-2">
           {(["wifi", "url", "email", "text"] as StaticKind[]).map((k) => (
             <button
               key={k}
@@ -356,7 +360,7 @@ export function NewQrForm() {
       <button
         type="submit"
         disabled={busy}
-        className="w-full sm:w-auto px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+        className="qr-submit w-full sm:w-auto px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
       >
         {busy ? "Creating..." : "Create QR"}
       </button>
@@ -400,7 +404,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="qr-field block">
       <span className="text-sm font-medium mb-1.5 block">
         {label}
         {required && <span className="text-destructive ml-1">*</span>}

@@ -93,7 +93,7 @@ export async function QrList({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="qr-gallery grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {qrs.map((qr) => {
         const isExpired = qr.expiresAt && qr.expiresAt < new Date();
         const isDisabled = !qr.isActive;
@@ -102,9 +102,9 @@ export async function QrList({
         return (
           <div
             key={qr.id}
-            className="border border-border rounded-lg bg-card overflow-hidden hover:border-primary/50 transition-colors"
+            className="qr-card border border-border rounded-lg bg-card overflow-hidden hover:border-primary/50 transition-colors"
           >
-            <div className="p-4 flex justify-center bg-white relative">
+            <div className="qr-card-art p-4 flex justify-center bg-white relative">
               <QrThumbnail
                 slug={isStatic ? undefined : qr.id}
                 payload={isStatic ? qr.staticPayload ?? undefined : undefined}
@@ -115,7 +115,7 @@ export async function QrList({
                 {isStatic ? `${STATIC_ICONS[qr.staticKind ?? ""] ?? "•"} ${qr.staticKind ?? "static"}` : "⚡ dynamic"}
               </span>
             </div>
-            <div className="p-4 border-t border-border space-y-2">
+            <div className="qr-card-body p-4 border-t border-border space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <h3 className="font-semibold truncate">{qr.title}</h3>

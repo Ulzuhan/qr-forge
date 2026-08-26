@@ -20,8 +20,8 @@ export default async function Home() {
   }
 
   return (
-    <div className="kc-workspace max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <div className="mb-8">
+    <div className="kc-workspace qr-workspace max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <div className="qr-page-heading mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Your QR Codes</h1>
         <p className="text-muted-foreground mt-1">
           Dynamic, editable, trackable. The QR image never changes — you change

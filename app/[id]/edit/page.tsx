@@ -28,7 +28,7 @@ export default async function EditQrPage({
   if (!qr) notFound();
 
   return (
-    <div className="kc-workspace max-w-3xl mx-auto px-4 sm:px-6 py-8">
+    <div className="kc-workspace qr-workspace max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Edit QR</h1>
         <p className="text-muted-foreground mt-1">
