@@ -51,6 +51,9 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
                 Sign in
               </Link>
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Already have a KaiCorp Labs account? Use the same button — it asks for access to this one.
+            </p>
           </div>
 
           <DemoCard qrSvg={demoQr} />
