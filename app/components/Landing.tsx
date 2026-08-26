@@ -19,7 +19,7 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
   });
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="kc-product-landing flex flex-1 flex-col">
       {/* ── Hero ───────────────────────────────────────────────────── */}
       <section className="mx-auto w-full max-w-5xl px-5 pt-12 pb-16 sm:pt-20 sm:pb-24">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
@@ -67,7 +67,7 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
             What you get
           </h2>
 
-          <div className="mt-8 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="kc-card-grid mt-8 grid gap-x-10 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map(({ icon, title, body }) => (
               <div key={title}>
                 <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-lg">
@@ -88,7 +88,7 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Two kinds of code
         </h2>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <div className="kc-card-grid mt-8 grid gap-4 sm:grid-cols-2">
           <div className="rounded-lg border border-border bg-card p-5">
             <p className="font-mono text-xs uppercase text-primary">⚡ dynamic</p>
             <h3 className="mt-2 font-medium">Editable, and it counts scans</h3>

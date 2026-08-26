@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 
 /**
  * Cuenta actual y salida. En pantallas anchas se ve el email; en móvil solo la
  * inicial dentro de un círculo, que es lo que cabe al lado del botón de crear.
  */
 export function UserMenu({ email }: { email: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -33,9 +31,12 @@ export function UserMenu({ email }: { email: string }) {
 
   async function logout() {
     setBusy(true);
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    router.push("/login");
-    router.refresh();
+    const res = await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    // Antes iba a /login, que aquí no es una página: lo captura la ruta [id],
+    // que exige sesión y rebotaba al login del proveedor. Con la sesión de
+    // Authentik todavía viva, el botón de salir te volvía a meter dentro.
+    const next = res ? (await res.json().catch(() => ({}))).next : null;
+    window.location.href = next ?? "/";
   }
 
   return (
@@ -71,7 +72,7 @@ export function UserMenu({ email }: { email: string }) {
             disabled={busy}
             className="w-full rounded px-3 py-2 text-left text-sm transition-colors hover:bg-muted disabled:opacity-60"
           >
-            {busy ? "Saliendo…" : "Cerrar sesión"}
+            {busy ? "Signing out…" : "Sign out"}
           </button>
         </div>
       )}

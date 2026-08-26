@@ -85,7 +85,7 @@ export default async function QrDetailPage({
   const isExpired = qr.expiresAt && qr.expiresAt < new Date();
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className="kc-workspace max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">← All QRs</Link>
         <span>/</span>
