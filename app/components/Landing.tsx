@@ -39,10 +39,16 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
 
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
               <Link
-                href="/api/auth/login"
+                href="https://auth.kaicorplabs.com/if/flow/enroll-qr-forge/"
                 className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Sign in or request an account
+                Request an account
+              </Link>
+              <Link
+                href="/api/auth/login"
+                className="inline-flex h-12 items-center justify-center rounded-md border border-border px-7 text-base font-medium transition-colors hover:bg-muted"
+              >
+                Sign in
               </Link>
             </div>
           </div>
@@ -114,10 +120,10 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
             and there is no analytics company in the middle.
           </p>
           <Link
-            href="/api/auth/login"
+            href="https://auth.kaicorplabs.com/if/flow/enroll-qr-forge/"
             className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Get started
+            Request an account
             <span aria-hidden>→</span>
           </Link>
         </div>

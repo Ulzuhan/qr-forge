@@ -4,6 +4,7 @@ import Link from "next/link";
 import "./globals.css";
 import { currentUser } from "@/lib/auth";
 import { UserMenu } from "./components/UserMenu";
+import { KaiCorpFooter } from "./components/KaiCorpFooter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,9 +76,7 @@ export default async function RootLayout({
 
         <main className="flex-1">{children}</main>
 
-        <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground">
-          QR-Forge · self-hosted · no analytics, no tracking beyond your logs
-        </footer>
+        <KaiCorpFooter />
       </body>
     </html>
   );
