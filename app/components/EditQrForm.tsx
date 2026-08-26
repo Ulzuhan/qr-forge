@@ -3,8 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type StaticKind = "url" | "wifi" | "email" | "text";
-
 type QrData = {
   id: string;
   type: "dynamic" | "static";

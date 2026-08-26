@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
 
-    let payload: { destinationUrl: string | null; staticPayload: string | null; staticKind: StaticKind | null } = {
+    const payload: { destinationUrl: string | null; staticPayload: string | null; staticKind: StaticKind | null } = {
       destinationUrl: null,
       staticPayload: null,
       staticKind: null,

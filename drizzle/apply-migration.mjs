@@ -1,10 +1,15 @@
 // Helper para resetear la DB y aplicar migrations
 // Uso: npm run db:reset
-const Database = require("better-sqlite3");
-const fs = require("fs");
-const path = require("path");
+//
+// En .mjs y con imports: el proyecto no declara "type": "module", así que un
+// .js aquí es CommonJS y `require()` funcionaba — pero el lint de TypeScript
+// se aplica también a los .js del repo y lo marcaba como error. Convertirlo es
+// más honesto que silenciar la regla.
+import Database from "better-sqlite3";
+import fs from "node:fs";
+import path from "node:path";
 
-const dbPath = path.join(__dirname, "..", "qrforge.db");
+const dbPath = path.join(import.meta.dirname, "..", "qrforge.db");
 const dbWal = dbPath + "-wal";
 const dbShm = dbPath + "-shm";
 
@@ -26,7 +31,7 @@ db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
 // Encontrar todos los archivos de migration
-const drizzleDir = path.join(__dirname);
+const drizzleDir = import.meta.dirname;
 const migrations = fs
   .readdirSync(drizzleDir)
   .filter((f) => f.endsWith(".sql"))

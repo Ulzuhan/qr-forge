@@ -299,8 +299,8 @@ export default async function QrDetailPage({
             <div className="p-4 border border-warning/30 rounded-md bg-warning/5 text-sm">
               <p className="font-medium text-warning mb-1">Static QR — no tracking</p>
               <p className="text-muted-foreground">
-                This QR encodes the payload directly. It doesn't pass through this app,
-                so we can't see scans, locations, or devices. The QR will keep working
+                This QR encodes the payload directly. It doesn’t pass through this app,
+                so we can’t see scans, locations, or devices. The QR will keep working
                 even if QR-Forge goes down.
               </p>
             </div>
