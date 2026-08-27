@@ -1,0 +1,41 @@
+[Unit]
+Description=QR Forge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qrforge
+Group=qrforge
+WorkingDirectory=/opt/qr-forge
+EnvironmentFile=/etc/qr-forge.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3459
+Environment=QRFORGE_DB_PATH=/var/lib/qrforge/qrforge.db
+ExecStartPre=/usr/bin/node /opt/qr-forge/scripts/init-db.mjs
+ExecStart=/usr/bin/node /opt/qr-forge/server.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/qrforge
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+MemoryMax=512M
+TasksMax=256
+CPUQuota=150%
+TimeoutStopSec=30
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

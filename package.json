@@ -12,7 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "test": "vitest run && ./scripts/run-suites.sh",
     "test:unit": "vitest run",
-    "test:http": "./scripts/run-suites.sh"
+    "test:http": "./scripts/run-suites.sh",
+    "postbuild": "node scripts/prepare-standalone.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

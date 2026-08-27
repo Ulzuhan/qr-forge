@@ -1,0 +1,24 @@
+services:
+  qr-forge:
+    build: .
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:3459:3459"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - qrforge-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=0700,uid=10001,gid=10001
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.5
+
+volumes:
+  qrforge-data:
