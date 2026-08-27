@@ -92,7 +92,7 @@ export function EditQrForm({ qr }: { qr: QrData }) {
             className="w-full px-3 py-2 rounded-md bg-muted border border-border focus:border-primary focus:outline-none resize-none font-mono text-xs"
           />
           <p className="text-xs text-warning mt-1">
-            ⚠ Cambiar esto modifica lo que el QR codifica directamente.
+            ⚠ Changing this rewrites what the code itself encodes.
           </p>
         </Field>
       ) : (
@@ -105,7 +105,7 @@ export function EditQrForm({ qr }: { qr: QrData }) {
             className="w-full px-3 py-2 rounded-md bg-muted border border-border focus:border-primary focus:outline-none font-mono text-sm"
           />
           <p className="text-xs text-warning mt-1">
-            ⚠ Cambiar esto redirige a los QRs ya impresos. Úsalo con cabeza.
+            ⚠ Every code already printed will start pointing here. Use with care.
           </p>
         </Field>
       )}
