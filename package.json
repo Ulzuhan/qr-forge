@@ -10,7 +10,9 @@
     "db:reset": "node drizzle/apply-migration.mjs",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "test": "vitest run"
+    "test": "vitest run && ./scripts/run-suites.sh",
+    "test:unit": "vitest run",
+    "test:http": "./scripts/run-suites.sh"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

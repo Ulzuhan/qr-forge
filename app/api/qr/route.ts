@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jsonBody } from "@/lib/body";
 import { db } from "@/db";
 import { qrCodes, qrScans } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
@@ -55,7 +56,12 @@ export async function POST(request: NextRequest) {
   if (!auth.user) return auth.response;
 
   try {
-    const body = await request.json();
+    // `null` es JSON válido: pasaba el `try` y reventaba al leer un campo, y el
+    // catch lo convertía en un 500 que no le dice nada a quien lo recibe.
+    const body = await jsonBody(request);
+    if (!body) {
+      return NextResponse.json({ error: "Malformed request body" }, { status: 400 });
+    }
     const {
       title,
       description,
