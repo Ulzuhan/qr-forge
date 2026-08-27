@@ -26,6 +26,7 @@ export function CopyButton({ text }: { text: string }) {
       onClick={handleCopy}
       className="px-3 py-2 text-sm rounded-md bg-muted hover:bg-muted/70 transition-colors"
       title="Copy to clipboard"
+      aria-label="Copy to clipboard"
     >
       {copied ? "✓" : "📋"}
     </button>

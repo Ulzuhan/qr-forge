@@ -34,6 +34,7 @@ export function DeleteButton({ id, title }: Props) {
       disabled={busy}
       className="px-3 py-1.5 text-sm rounded-md text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
       title="Delete QR"
+      aria-label="Delete QR"
     >
       {busy ? "..." : "🗑"}
     </button>

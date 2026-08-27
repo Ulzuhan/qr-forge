@@ -1,16 +1,27 @@
 // Helpers compartidos para validación, slugs, y payloads de QR estáticos
+import { randomInt } from "crypto";
 import { db } from "@/db";
 import { qrCodes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
  * Genera un slug aleatorio legible (sin ambigüedades: sin 0/O, 1/l/I)
+ *
+ * Con `crypto.randomInt` y no con `Math.random()`. El slug es público —va dentro
+ * del QR impreso— pero eso no lo hace irrelevante: `Math.random()` en V8 es un
+ * xorshift128+ cuyo estado se recupera a partir de unas pocas salidas. Quien
+ * cree unos cuantos QR propios puede reconstruirlo y **predecir los slugs que
+ * generen otros usuarios en ese momento**, y con ellos ver a dónde apuntan sus
+ * códigos y contaminarles las analíticas.
+ *
+ * `randomInt` además reparte uniforme: `Math.floor(random() * 31)` introduce un
+ * sesgo pequeño, y aquí no cuesta nada evitarlo.
  */
 export function generateSlug(length: number = 7): string {
   const charset = "abcdefghjkmnpqrstuvwxyz23456789";
   const chars: string[] = [];
   for (let i = 0; i < length; i++) {
-    chars.push(charset[Math.floor(Math.random() * charset.length)]);
+    chars.push(charset[randomInt(charset.length)]);
   }
   return chars.join("");
 }

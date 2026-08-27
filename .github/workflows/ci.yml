@@ -21,6 +21,10 @@ jobs:
 
       - run: npm run lint
 
+      # Antes del build: son funciones puras y tardan menos de un segundo.
+      # Cubren safeNext(), que estuvo abierta en cuatro servicios a la vez.
+      - run: npm test
+
       - run: npm run build
 
       # After the build on purpose: Next generates the route types the checker

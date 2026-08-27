@@ -37,8 +37,8 @@ export default async function EditQrPage({
         </p>
       </div>
       <div className="p-4 rounded-md bg-primary/10 border border-primary/30 mb-6 text-sm">
-        <strong>💡 Tip:</strong> Cambias la URL destino y los QRs que ya
-        imprimiste apuntan al nuevo destino. Magia.
+        <strong>💡 Tip:</strong> Change the destination and every code you
+        already printed points somewhere new. No reprinting.
       </div>
       <EditQrForm
         qr={{

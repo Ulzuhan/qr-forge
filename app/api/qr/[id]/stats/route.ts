@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { qrCodes, qrScans } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { apiUser } from "@/lib/auth";
 
 // GET /api/qr/[id]/stats — devuelve stats agregadas de un QR
@@ -40,7 +40,11 @@ export async function GET(
         count: sql<number>`COUNT(*)`.as("count"),
       })
       .from(qrScans)
-      .where(eq(qrScans.qrId, id))
+      // `thirtyDaysAgo` se calculaba arriba y no llegaba a usarse: la consulta
+      // devolvía el histórico entero mientras la etiqueta decía "últimos 30
+      // días". Un gráfico que miente sobre su propio periodo es peor que no
+      // tenerlo, porque nadie lo comprueba.
+      .where(and(eq(qrScans.qrId, id), gte(qrScans.scannedAt, thirtyDaysAgo)))
       .groupBy(sql`day`)
       .orderBy(sql`day`);
 

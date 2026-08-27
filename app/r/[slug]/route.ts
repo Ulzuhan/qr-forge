@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { qrCodes, qrScans } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { clientIp, rateLimit } from "@/lib/ratelimit";
 
 // GET /r/[slug] — el endpoint público que codifica el QR
 // Hace log del scan y redirige a la URL destino
@@ -25,17 +26,32 @@ export async function GET(
       return new NextResponse("400 — This QR is not a redirect URL", { status: 400 });
     }
     if (!qr.isActive) {
-      return new NextResponse("410 — QR deshabilitado", { status: 410 });
+      return new NextResponse("410 — This QR has been disabled", { status: 410 });
     }
     if (qr.expiresAt && qr.expiresAt < new Date()) {
-      return new NextResponse("410 — QR expirado", { status: 410 });
+      return new NextResponse("410 — This QR has expired", { status: 410 });
     }
     // Después de los checks, destinationUrl es string (narrowing)
     const destinationUrl = qr.destinationUrl!;
 
+    // Límite SOBRE EL REGISTRO, no sobre la redirección.
+    //
+    // Tentador poner el límite arriba y devolver 429, pero sería un error: esta
+    // ruta es la que un QR impreso necesita que funcione siempre. Un cartel en
+    // un evento, una oficina entera tras el mismo NAT, y de pronto el código
+    // "no va" — y quien lo imprimió no puede arreglarlo.
+    //
+    // Lo que sí conviene acotar es la analítica: sin límite, cualquiera puede
+    // pedir la misma URL en bucle e inflar las cifras de un código ajeno. Así
+    // que quien pase de 30 escaneos por minuto sigue siendo redirigido, pero
+    // deja de sumar. Se pierde algún escaneo legítimo en un pico; se evita que
+    // los números sean inventables por cualquiera.
+    const ip = clientIp(request);
+    const limite = rateLimit(`scan:${slug}:${ip}`, 30, 60_000);
+
     // Log del scan (fire-and-forget: no bloquea el redirect)
     const headers = request.headers;
-    db.insert(qrScans)
+    if (limite.allowed) db.insert(qrScans)
       .values({
         qrId: qr.id,
         ip: headers.get("cf-connecting-ip") ?? headers.get("x-forwarded-for") ?? null,
@@ -46,7 +62,19 @@ export async function GET(
       })
       .catch((err) => console.error("[scan log failed]", err));
 
-    return NextResponse.redirect(destinationUrl, 302);
+    // Sin `no-store`, un 302 cacheado deja el QR clavado en el destino viejo
+    // —justo lo que un QR dinámico existe para evitar— y además deja de contar
+    // escaneos, porque el navegador ya no vuelve a pedirlo. Los dos efectos son
+    // silenciosos: el QR "funciona", solo que apunta a donde ya no debe.
+    return new NextResponse(null, {
+      status: 302,
+      headers: {
+        Location: destinationUrl,
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    });
   } catch (error) {
     console.error("[GET /r/[slug]]", error);
     return new NextResponse("500 — Internal error", { status: 500 });

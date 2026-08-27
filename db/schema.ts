@@ -46,7 +46,9 @@ export const sessions = sqliteTable(
 // QR Codes — admite dos modos:
 //  - "dynamic" (default): tiene destinationUrl, el QR apunta a /r/{slug} y redirige
 //  - "static": NO redirige, el QR codifica directamente staticPayload (texto/URL/wifi/etc)
-export const qrCodes = sqliteTable("qr_codes", {
+export const qrCodes = sqliteTable(
+  "qr_codes",
+  {
   id: text("id").primaryKey(), // slug
   // Dueño. El slug es global (vive en la URL pública /r/<slug>), pero el QR
   // solo lo ve y edita quien lo creó.
@@ -74,13 +76,19 @@ export const qrCodes = sqliteTable("qr_codes", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  // El panel siempre lista "los QR de este usuario": sin índice, cada carga
+  // recorre la tabla entera.
+  (table) => [index("qr_codes_user_idx").on(table.userId)]
+);
 
 // Scans — solo aplica a dynamic (los static no redirigen)
-export const qrScans = sqliteTable("qr_scans", {
+export const qrScans = sqliteTable(
+  "qr_scans",
+  {
   id: integer("id").primaryKey({ autoIncrement: true }),
   qrId: text("qr_id")
     .notNull()
@@ -89,10 +97,20 @@ export const qrScans = sqliteTable("qr_scans", {
   userAgent: text("user_agent"),
   referer: text("referer"),
   country: text("country"),
-  scannedAt: integer("scanned_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+    scannedAt: integer("scanned_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  // Las analíticas son siempre COUNT y GROUP BY sobre los escaneos de UN código,
+  // acotados por fecha. Sin índices eso es un recorrido completo de la tabla que
+  // más crece del sistema —una fila por escaneo— y se degrada sola con el uso.
+  (table) => [
+    index("qr_scans_qr_idx").on(table.qrId),
+    index("qr_scans_scanned_idx").on(table.scannedAt),
+    // Compuesto para la consulta real: escaneos de un QR en un rango de fechas.
+    index("qr_scans_qr_scanned_idx").on(table.qrId, table.scannedAt),
+  ]
+);
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
