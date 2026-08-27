@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { sameOrigin } from "@/lib/request-security";
 import { endSession } from "@/lib/auth";
 import { endSessionUrl, oidcConfig } from "@/lib/oidc";
 
@@ -20,7 +21,9 @@ import { endSessionUrl, oidcConfig } from "@/lib/oidc";
  * Sigue siendo POST y no GET: con GET, una imagen en cualquier página podría
  * cerrarte la sesión desde fuera.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const originError = sameOrigin(request);
+  if (originError) return originError;
   await endSession();
 
   const cfg = oidcConfig();

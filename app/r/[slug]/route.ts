@@ -11,6 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+  if (!/^[a-z0-9-]{1,40}$/.test(slug)) return new NextResponse("404 — QR not found", { status: 404 });
 
   try {
     const [qr] = await db
@@ -54,10 +55,10 @@ export async function GET(
     if (limite.allowed) db.insert(qrScans)
       .values({
         qrId: qr.id,
-        ip: headers.get("cf-connecting-ip") ?? headers.get("x-forwarded-for") ?? null,
-        userAgent: headers.get("user-agent") ?? null,
-        referer: headers.get("referer") ?? null,
-        country: headers.get("cf-ipcountry") ?? null,
+        ip: null,
+        userAgent: headers.get("user-agent")?.slice(0, 256) ?? null,
+        referer: null,
+        country: /^[A-Z]{2}$/.test(headers.get("cf-ipcountry") ?? "") ? headers.get("cf-ipcountry") : null,
         scannedAt: new Date(),
       })
       .catch((err) => console.error("[scan log failed]", err));

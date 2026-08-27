@@ -1,18 +1,24 @@
 import type { NextConfig } from "next";
 
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000" },
+];
+
 const nextConfig: NextConfig = {
-  // Necesario para que better-sqlite3 no se bundlee (es nativo)
+  output: "standalone",
+  poweredByHeader: false,
   serverExternalPackages: ["better-sqlite3"],
-  // Fija la raíz del espacio de trabajo a este directorio. Sin esto, un
-  // lockfile perdido más arriba en el árbol hace que Next deduzca la raíz
-  // equivocada.
-  //
-  // `import.meta.dirname` y no una ruta escrita a mano: la absoluta cableada era
-  // la de esta máquina y rompía el build de quien clonase el repositorio. Esta
-  // es absoluta —que es lo que Next pide— y se resuelve sola en cada sitio.
-  turbopack: {
-    root: import.meta.dirname,
+  turbopack: { root: import.meta.dirname },
+  async headers() {
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }] },
+    ];
   },
 };
-
 export default nextConfig;

@@ -27,7 +27,7 @@ servidor=""
 
 parar() {
   [ -n "$servidor" ] || return 0
-  # El grupo entero: `next start` levanta un trabajador aparte, y matar sólo al
+  # El grupo entero: el standalone puede dejar trabajo en curso, y matar sólo al
   # padre deja el puerto ocupado. La siguiente suite encontraría un servidor en
   # pie, decidiría que ya ha arrancado, y mediría el de antes.
   kill -- -"$servidor" 2>/dev/null || kill "$servidor" 2>/dev/null
@@ -50,6 +50,7 @@ arrancar() {
   # Los valores de OIDC son de mentira a propósito: ninguna suite completa un
   # inicio de sesión contra el proveedor.
   QRFORGE_DB_PATH="$QRFORGE_DB_PATH" \
+    QRFORGE_MAX_QRS_PER_USER=20 \
     QRFORGE_OIDC_CLIENT_ID=pruebas \
     QRFORGE_OIDC_CLIENT_SECRET=pruebas \
     QRFORGE_OIDC_REDIRECT_URI="$BASE/api/auth/callback" \
@@ -57,7 +58,9 @@ arrancar() {
     QRFORGE_OIDC_INTERNAL_BASE="http://127.0.0.1:9999" \
     QRFORGE_OIDC_APP_SLUG=qrforge \
     QRFORGE_PUBLIC_URL="$BASE" \
-    ./node_modules/.bin/next start -p "$PUERTO" >"$LOG" 2>&1 &
+    PORT="$PUERTO" \
+    HOSTNAME=127.0.0.1 \
+    node .next/standalone/server.js >"$LOG" 2>&1 &
   servidor=$!
 
   for _ in $(seq 1 90); do

@@ -4,7 +4,7 @@ Dynamic and static QR codes, self-hosted. The printed QR never changes: you chan
 
 [![CI](https://github.com/Ulzuhan/qr-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/Ulzuhan/qr-forge/actions/workflows/ci.yml)
 
-- **Dynamic**: the QR encodes `<public URL>/r/<slug>`, which redirects to the destination and records the scan (date, country, user-agent). Edit the destination whenever you like without reprinting anything.
+- **Dynamic**: the QR encodes `<public URL>/r/<slug>`, which redirects to the destination and records a minimized scan (date, country, truncated user-agent; never IP or Referer). Edit the destination whenever you like without reprinting anything.
 - **Static**: the QR encodes the content directly (URL, WiFi, email, text). It never touches the app, so there are no statistics — and it keeps working even when the server is down.
 
 ## Access
@@ -25,16 +25,21 @@ The only public route is **`/r/<slug>`**: it is what printed QR codes encode, an
 | `QRFORGE_OIDC_PUBLIC_BASE` | Authentik as the browser sees it (`https://auth.kaicorplabs.com`). |
 | `QRFORGE_OIDC_INTERNAL_BASE` | Authentik as this server sees it (`http://127.0.0.1:9100`): redeeming the authorization code never has to round-trip through the internet. |
 | `QRFORGE_DB_PATH` | SQLite path (default `./qrforge.db`). |
+| `QRFORGE_PUBLIC_HOST` | Public hostname the origin check compares against. Unset, the incoming `Host` is used, which is right behind a tunnel that preserves it — verified. Only needed behind a proxy that rewrites `Host` with an internal name. |
+| `QRFORGE_SESSION_TTL_HOURS` | Session lifetime, default 12 h and clamped to 1–24 h. |
+| `QRFORGE_MAX_QRS_PER_USER` | Per-account quota; default 1000. |
+| `QRFORGE_MAX_CREATES_PER_HOUR` | Creation rate per identity and IP; default 120. |
+| `QRFORGE_SCAN_RETENTION_DAYS` | Scan retention; default 365 days. |
 
 ## Development
 
 ```bash
 npm run dev          # http://localhost:3000
-npm run db:reset     # WIPES the DB and reapplies drizzle/*.sql
+QRFORGE_DB_PATH=/tmp/qrforge-dev.db QRFORGE_ALLOW_DB_RESET=YES npm run db:reset
 npm run build && npm start
 ```
 
-In production it runs as a systemd user service (`qr-forge.service`, port 3459) behind a Cloudflare tunnel.
+Production recipes for Docker Compose and a hardened systemd service are documented in [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ## Tests
 

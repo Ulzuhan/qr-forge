@@ -26,17 +26,13 @@ export function generateSlug(length: number = 7): string {
   return chars.join("");
 }
 
-export async function generateUniqueSlug(maxAttempts: number = 10): Promise<string> {
+export async function generateUniqueSlug(maxAttempts: number = 20): Promise<string> {
   for (let i = 0; i < maxAttempts; i++) {
-    const candidate = generateSlug(7);
-    const [existing] = await db
-      .select({ id: qrCodes.id })
-      .from(qrCodes)
-      .where(eq(qrCodes.id, candidate))
-      .limit(1);
+    const candidate = generateSlug(i < 10 ? 7 : 10);
+    const [existing] = await db.select({ id: qrCodes.id }).from(qrCodes).where(eq(qrCodes.id, candidate)).limit(1);
     if (!existing) return candidate;
   }
-  return generateSlug(10);
+  throw new Error("Could not allocate a unique QR slug");
 }
 
 export function sanitizeSlug(input: string): string | null {
@@ -50,10 +46,11 @@ export function sanitizeSlug(input: string): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
-export function isValidUrl(input: string): boolean {
+export function isValidUrl(input: unknown): input is string {
+  if (typeof input !== "string" || input.length > 2048 || /[\u0000-\u001F\u007F]/.test(input)) return false;
   try {
     const u = new URL(input);
-    return u.protocol === "http:" || u.protocol === "https:";
+    return (u.protocol === "http:" || u.protocol === "https:") && Boolean(u.hostname) && !u.username && !u.password;
   } catch {
     return false;
   }

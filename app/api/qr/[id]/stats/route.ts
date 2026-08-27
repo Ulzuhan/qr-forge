@@ -62,7 +62,7 @@ export async function GET(
 
     // Últimos 20 scans
     const recent = await db
-      .select()
+      .select({ id: qrScans.id, country: qrScans.country, userAgent: qrScans.userAgent, scannedAt: qrScans.scannedAt })
       .from(qrScans)
       .where(eq(qrScans.qrId, id))
       .orderBy(desc(qrScans.scannedAt))

@@ -27,7 +27,9 @@ import { sessions, users, type User } from "@/db/schema";
 import type { OidcIdentity } from "@/lib/oidc";
 
 export const SESSION_COOKIE = "qrforge_session";
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
+const requestedTtl = Number(process.env.QRFORGE_SESSION_TTL_HOURS ?? 12);
+const SESSION_TTL_HOURS = Number.isFinite(requestedTtl) ? Math.min(24, Math.max(1, requestedTtl)) : 12;
+const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
 
 /** Lo que se guarda en la DB es el hash del token, nunca el token. */
 function tokenId(token: string): string {

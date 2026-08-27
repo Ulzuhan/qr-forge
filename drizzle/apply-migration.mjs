@@ -9,7 +9,16 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
 
-const dbPath = path.join(import.meta.dirname, "..", "qrforge.db");
+const requested = process.env.QRFORGE_DB_PATH?.trim();
+if (!requested || process.env.QRFORGE_ALLOW_DB_RESET !== "YES") {
+  console.error("Refusing destructive reset: set QRFORGE_DB_PATH and QRFORGE_ALLOW_DB_RESET=YES explicitly.");
+  process.exit(2);
+}
+const dbPath = path.resolve(requested);
+if (dbPath === path.parse(dbPath).root) {
+  console.error("Refusing to use a filesystem root as database path.");
+  process.exit(2);
+}
 const dbWal = dbPath + "-wal";
 const dbShm = dbPath + "-shm";
 

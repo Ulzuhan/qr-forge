@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/ratelimit";
 import { safeNext, exchangeCode, oidcConfig } from "@/lib/oidc";
 import { startSession, upsertUser } from "@/lib/auth";
 
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
 
   const raw = request.cookies.get("qrforge_oidc")?.value;
   let stored: { verifier?: string; state?: string; next?: string } = {};
+
   try {
     stored = raw ? JSON.parse(raw) : {};
   } catch {
@@ -39,6 +41,9 @@ export async function GET(request: NextRequest) {
   if (!code || !state || !stored.state || !stored.verifier || state !== stored.state) {
     return fail();
   }
+
+  const callbackLimit = rateLimit(`oidc-callback:${clientIp(request)}`, 30, 15 * 60_000);
+  if (!callbackLimit.allowed) return tooManyRequests(callbackLimit);
 
   try {
     const identity = await exchangeCode(cfg, { code, verifier: stored.verifier });

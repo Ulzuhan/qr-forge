@@ -9,7 +9,7 @@
  *
  * Por eso el aislamiento entre cuentas es lo primero de esta suite.
  */
-import { api, check, consulta, crear, nota, resumen, sesion, BASE } from "./comun.mjs";
+import { api, check, consulta, crear, resumen, sesion } from "./comun.mjs";
 
 const a = sesion("usuario-a");
 const b = sesion("usuario-b");
@@ -47,6 +47,8 @@ check("redirige", salto.status, 302);
 check("a donde toca", salto.location, "https://ejemplo.example/nuevo");
 check("un slug inventado da 404", (await api("/r/noexiste")).status, 404);
 check("y se registra el escaneo", Number(consulta("select count(*) from qr_scans;")) >= 1, true);
+check("y no persiste la IP", consulta("select coalesce(ip, 'NULL') from qr_scans order by id desc limit 1;"), "NULL");
+check("ni el referer", consulta("select coalesce(referer, 'NULL') from qr_scans order by id desc limit 1;"), "NULL");
 
 // Desactivar un código tiene que cortar la redirección de verdad: es el botón de
 // emergencia de quien ya ha repartido el cartel.
@@ -103,9 +105,26 @@ check(
   201
 );
 
+console.log("\nMutaciones hostiles y carreras");
+for (const [campo, valor] of [["isActive", "false"], ["expiresAt", "no-fecha"], ["description", { objeto: true }], ["campaign", "x".repeat(201)], ["destinationUrl", 123]]) {
+  check(`PATCH rechaza ${campo} mal tipado`, (await api(`/api/qr/${id}`, { cookie: a, metodo: "PATCH", cuerpo: { [campo]: valor } })).status, 400);
+}
+for (const [ruta, metodo, cuerpo] of [["/api/qr", "POST", { title: "csrf", type: "dynamic", destinationUrl: "https://example.test" }], [`/api/qr/${id}`, "PATCH", { title: "csrf" }], [`/api/qr/${id}`, "DELETE", undefined], ["/api/auth/logout", "POST", undefined]]) {
+  check(`${metodo} ${ruta} rechaza un origen hermano`, (await api(ruta, { cookie: a, metodo, cuerpo, cabeceras: { origin: "https://hermano.example", "sec-fetch-site": "same-site" } })).status, 403);
+}
+check("un JSON mayor de 64 KiB se corta", (await crear(a, { description: "x".repeat(70 * 1024) })).status, 413);
+const carreraSlug = await Promise.all([crear(a, { customSlug: "colision" }), crear(a, { customSlug: "colision" })]);
+check("una colisión concurrente es 201/409", carreraSlug.map((r) => r.status).sort((x, y) => x - y), [201, 409]);
+
 console.log("\nLos topes");
 check("sin título no hay código", (await crear(a, { title: "" })).status, 400);
 check("un título kilométrico se rechaza", (await crear(a, { title: "x".repeat(200) })).status, 400);
 check("y un tipo inventado también", (await crear(a, { type: "loquesea" })).status, 400);
+let cuota = null;
+for (let i = 0; i < 25; i++) {
+  cuota = await crear(a, { title: `cuota-${i}` });
+  if (cuota.status === 507) break;
+}
+check("la cuota por cuenta corta el crecimiento", cuota?.status, 507);
 
 resumen();

@@ -26,17 +26,32 @@ export interface OidcConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
+  appSlug: string;
+  timeoutMs: number;
+}
+
+function validUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.trim());
+    const loopback = ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) return null;
+    if (url.username || url.password || url.search || url.hash) return null;
+    return url.toString().replace(/\/+$/, "");
+  } catch { return null; }
 }
 
 export function oidcConfig(): OidcConfig | null {
   const clientId = process.env.QRFORGE_OIDC_CLIENT_ID?.trim();
   const clientSecret = process.env.QRFORGE_OIDC_CLIENT_SECRET?.trim();
-  const publicBase = (process.env.QRFORGE_OIDC_PUBLIC_BASE ?? "https://auth.kaicorplabs.com").replace(/\/+$/, "");
-  const internalBase = (process.env.QRFORGE_OIDC_INTERNAL_BASE ?? "http://127.0.0.1:9100").replace(/\/+$/, "");
-  const redirectUri = process.env.QRFORGE_OIDC_REDIRECT_URI?.trim();
-
-  if (!clientId || !clientSecret || !redirectUri) return null;
-  return { publicBase, internalBase, clientId, clientSecret, redirectUri };
+  const publicBase = validUrl(process.env.QRFORGE_OIDC_PUBLIC_BASE);
+  const internalBase = validUrl(process.env.QRFORGE_OIDC_INTERNAL_BASE ?? process.env.QRFORGE_OIDC_PUBLIC_BASE);
+  const redirectUri = validUrl(process.env.QRFORGE_OIDC_REDIRECT_URI);
+  const appSlug = (process.env.QRFORGE_OIDC_APP_SLUG ?? "qr-forge").trim();
+  const requestedTimeout = Number(process.env.QRFORGE_OIDC_TIMEOUT_MS ?? 10_000);
+  const timeoutMs = Number.isFinite(requestedTimeout) ? Math.min(60_000, Math.max(1_000, requestedTimeout)) : 10_000;
+  if (!clientId || !clientSecret || !publicBase || !internalBase || !redirectUri || !/^[A-Za-z0-9_-]+$/.test(appSlug)) return null;
+  return { publicBase, internalBase, clientId, clientSecret, redirectUri, appSlug, timeoutMs };
 }
 
 /** Si falta configuración, la aplicación no puede dejar entrar a nadie. */
@@ -72,7 +87,7 @@ export function endSessionUrl(cfg: OidcConfig): string {
   // Sin él, el proveedor cierra la sesión y deja al usuario en la pantalla
   // de entrada de KaiCorp Labs, que pide credenciales: exactamente la señal
   // de que ha salido de verdad.
-  return `${cfg.publicBase}${APP_PATH}/qr-forge/end-session/`;
+  return `${cfg.publicBase}${APP_PATH}/${cfg.appSlug}/end-session/`;
 }
 
 // ─── PKCE ───────────────────────────────────────────────────────────
@@ -97,6 +112,7 @@ export async function exchangeCode(
 ): Promise<OidcIdentity> {
   const res = await fetch(`${cfg.internalBase}${APP_PATH}/token/`, {
     method: "POST",
+    signal: AbortSignal.timeout(cfg.timeoutMs),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
@@ -116,18 +132,19 @@ export async function exchangeCode(
   if (!tokens.access_token) throw new Error("token endpoint: sin access_token");
 
   const info = await fetch(`${cfg.internalBase}${APP_PATH}/userinfo/`, {
+    signal: AbortSignal.timeout(cfg.timeoutMs),
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
   if (!info.ok) {
     throw new Error(`userinfo: ${info.status}`);
   }
 
-  const claims = (await info.json()) as { sub?: string; email?: string; name?: string };
-  if (!claims.sub || !claims.email) {
+  const claims = (await info.json()) as { sub?: unknown; email?: unknown; name?: unknown };
+  if (typeof claims.sub !== "string" || !claims.sub || typeof claims.email !== "string" || !claims.email || (claims.name !== undefined && typeof claims.name !== "string")) {
     throw new Error("userinfo: faltan sub o email");
   }
 
-  return { sub: claims.sub, email: claims.email.toLowerCase(), name: claims.name };
+  return { sub: claims.sub.slice(0, 256), email: claims.email.toLowerCase().slice(0, 320), name: claims.name?.slice(0, 256) };
 }
 
 /**
