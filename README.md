@@ -3,13 +3,17 @@
 Dynamic and static QR codes, self-hosted. The printed QR never changes: you change where it points.
 
 [![CI](https://github.com/Ulzuhan/qr-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/Ulzuhan/qr-forge/actions/workflows/ci.yml)
+[![Container image](https://github.com/Ulzuhan/qr-forge/actions/workflows/docker.yml/badge.svg)](https://github.com/Ulzuhan/qr-forge/pkgs/container/qr-forge)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+![One printed QR, its destination changed from the summer menu to the autumn menu without reprinting anything](assets/screenshot.jpg)
 
 - **Dynamic**: the QR encodes `<public URL>/r/<slug>`, which redirects to the destination and records a minimized scan (date, country, truncated user-agent; never IP or Referer). Edit the destination whenever you like without reprinting anything.
 - **Static**: the QR encodes the content directly (URL, WiFi, email, text). It never touches the app, so there are no statistics — and it keeps working even when the server is down.
 
 ## Access
 
-Accounts live in **Authentik** (`auth.kaicorplabs.com`), not here: signing in is an OIDC flow (`lib/oidc.ts`), and who gets in is decided by the provider, which only issues tokens for members of the `qr-forge` group. Requesting an account and getting it approved happens there. This application only keeps a mirror of the identity (`users.oidc_sub`) so it can tell who owns each QR, plus its own session — a cookie whose hash lives in the database, revocable. See `lib/auth.ts`.
+Accounts live in an **OIDC provider you point it at** — any standard one works: Authentik (what the original deployment runs), Keycloak, Zitadel, Auth0 — not here: signing in is an OIDC flow (`lib/oidc.ts`), and who gets in is decided by the provider. Without the OIDC variables set, nobody can sign in and nothing can be created — deliberate, not a misconfiguration. This application only keeps a mirror of the identity (`users.oidc_sub`) so it can tell who owns each QR, plus its own session — a cookie whose hash lives in the database, revocable. See `lib/auth.ts`.
 
 Each account sees and manages **only its own QR codes**.
 
@@ -20,10 +24,10 @@ The only public route is **`/r/<slug>`**: it is what printed QR codes encode, an
 | Variable | Purpose |
 |---|---|
 | `QRFORGE_PUBLIC_URL` | Public URL the app is served from (e.g. `https://qr.kaicorplabs.com`). **This is what gets printed into the QR codes**: pin it in production, or a QR generated from localhost or from inside the VPN will carry that private URL onto paper. If unset, it is derived from the request. |
-| `QRFORGE_OIDC_CLIENT_ID` / `_SECRET` | OIDC client credentials in Authentik. Without them nobody can sign in. |
+| `QRFORGE_OIDC_CLIENT_ID` / `_SECRET` | OIDC client credentials. Without them nobody can sign in. |
 | `QRFORGE_OIDC_REDIRECT_URI` | Must match one of the URIs registered in the provider. |
-| `QRFORGE_OIDC_PUBLIC_BASE` | Authentik as the browser sees it (`https://auth.kaicorplabs.com`). |
-| `QRFORGE_OIDC_INTERNAL_BASE` | Authentik as this server sees it (`http://127.0.0.1:9100`): redeeming the authorization code never has to round-trip through the internet. |
+| `QRFORGE_OIDC_PUBLIC_BASE` | The provider as the browser sees it. |
+| `QRFORGE_OIDC_INTERNAL_BASE` | The provider as this server sees it — redeeming the authorization code never leaves the internal network. Falls back to `PUBLIC_BASE`. |
 | `QRFORGE_DB_PATH` | SQLite path (default `./qrforge.db`). |
 | `QRFORGE_PUBLIC_HOST` | Public hostname the origin check compares against. Unset, the incoming `Host` is used, which is right behind a tunnel that preserves it — verified. Only needed behind a proxy that rewrites `Host` with an internal name. |
 | `QRFORGE_SESSION_TTL_HOURS` | Session lifetime, default 12 h and clamped to 1–24 h. |
