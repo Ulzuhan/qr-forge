@@ -36,6 +36,33 @@ npm run build && npm start
 
 In production it runs as a systemd user service (`qr-forge.service`, port 3459) behind a Cloudflare tunnel.
 
+## Tests
+
+```bash
+npm test           # unit tests, then the HTTP suite
+npm run test:unit  # just the pure functions
+npm run test:http  # just the suite, needs a build first
+```
+
+The HTTP suite starts its own server against a **fresh database built from the
+schema** — never `qrforge.db`, which holds real accounts.
+
+What it is really guarding: a dynamic QR is not a page, it is a piece of paper
+**already printed** pointing at a URL that can be changed afterwards. Anybody who
+manages to edit somebody else's destination redirects everyone scanning a poster
+that has been on the wall for weeks — and whoever printed it cannot fix it. So the
+first thing the suite checks is that another account gets **404** reading, editing,
+deleting or asking for the stats of a code that is not theirs (404 rather than 403:
+there is no reason to confirm to somebody probing that the code exists), and that the
+destination survives those attempts untouched.
+
+It also covers what a destination may be. `javascript:`, `data:`, `file:`, `ftp:` and
+protocol-relative URLs are refused, because that destination ends up in a `Location`
+header that the scanner's browser follows. A private address like
+`http://192.168.1.50` **is** accepted, on purpose: the redirect resolves in the
+scanner's browser, not on this server, so it reaches nothing here — and a QR for the
+NAS at home is a legitimate use of this tool.
+
 ## Database
 
 SQLite with Drizzle. `users` (mirror of the Authentik identity) · `sessions` · `qr_codes` (with `user_id`) · `qr_scans`. Foreign keys cascade, but SQLite only enforces them when the connection enables `PRAGMA foreign_keys = ON` — the app does (`db/index.ts`); the `sqlite3` CLI does **not**, so a manual `DELETE FROM users` leaves orphans behind.
