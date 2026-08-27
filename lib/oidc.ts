@@ -30,12 +30,12 @@ export interface OidcConfig {
   timeoutMs: number;
 }
 
-function validUrl(raw: string | undefined): string | null {
+function validUrl(raw: string | undefined, { allowHttp = false } = {}): string | null {
   if (!raw) return null;
   try {
     const url = new URL(raw.trim());
     const loopback = ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
-    if (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) return null;
+    if (url.protocol !== "https:" && !((allowHttp || loopback) && url.protocol === "http:")) return null;
     if (url.username || url.password || url.search || url.hash) return null;
     return url.toString().replace(/\/+$/, "");
   } catch { return null; }
@@ -45,7 +45,12 @@ export function oidcConfig(): OidcConfig | null {
   const clientId = process.env.QRFORGE_OIDC_CLIENT_ID?.trim();
   const clientSecret = process.env.QRFORGE_OIDC_CLIENT_SECRET?.trim();
   const publicBase = validUrl(process.env.QRFORGE_OIDC_PUBLIC_BASE);
-  const internalBase = validUrl(process.env.QRFORGE_OIDC_INTERNAL_BASE ?? process.env.QRFORGE_OIDC_PUBLIC_BASE);
+  // La pata interna admite http con cualquier hostname: es el tramo
+  // servidor→proveedor, y un alias de red de contenedores (authentik-server)
+  // o un nombre de LAN son el caso normal — exigir loopback aquí dejaba el
+  // login en 503 dentro de un contenedor, medido. El https obligatorio sigue
+  // intacto para todo lo que visita el navegador.
+  const internalBase = validUrl(process.env.QRFORGE_OIDC_INTERNAL_BASE ?? process.env.QRFORGE_OIDC_PUBLIC_BASE, { allowHttp: true });
   const redirectUri = validUrl(process.env.QRFORGE_OIDC_REDIRECT_URI);
   const appSlug = (process.env.QRFORGE_OIDC_APP_SLUG ?? "qr-forge").trim();
   const requestedTimeout = Number(process.env.QRFORGE_OIDC_TIMEOUT_MS ?? 10_000);
