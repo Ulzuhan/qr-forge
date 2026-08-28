@@ -1,6 +1,6 @@
 {
   "name": "qr-forge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dynamic and static QR codes, self-hosted: the printed code never changes, you change where it points — with privacy-minimized scan analytics.",
   "license": "MIT",
   "author": "Ulzuhan",
