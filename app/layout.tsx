@@ -3,9 +3,10 @@ import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { currentUser } from "@/lib/auth";
-import { UserMenu } from "./components/UserMenu";
 import { KaiCorpFooter } from "./components/kaicorp-footer";
 import { KaiCorpHeader } from "./components/kaicorp-header";
+import { KaiCorpAccountMenu } from "./components/kaicorp-account-menu";
+import { accountUrl } from "@/lib/oidc";
 
 const display = Space_Grotesk({ variable: "--font-display", weight: ["500", "700"], subsets: ["latin"] });
 const sans = Inter({ variable: "--font-sans", weight: ["400", "500"], subsets: ["latin"] });
@@ -66,7 +67,7 @@ export default async function RootLayout({
                 <span className="sm:hidden">+ New</span>
                 <span className="hidden sm:inline">+ New QR</span>
               </Link>
-              <UserMenu email={user.email} />
+              <KaiCorpAccountMenu email={user.email} accountUrl={accountUrl()} />
             </>
           ) : (
             <Link

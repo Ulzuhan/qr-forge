@@ -28,6 +28,7 @@ The only public route is **`/r/<slug>`**: it is what printed QR codes encode, an
 | `QRFORGE_OIDC_REDIRECT_URI` | Must match one of the URIs registered in the provider. |
 | `QRFORGE_OIDC_PUBLIC_BASE` | The provider as the browser sees it. |
 | `QRFORGE_OIDC_INTERNAL_BASE` | The provider as this server sees it — redeeming the authorization code never leaves the internal network. Falls back to `PUBLIC_BASE`. |
+| `QRFORGE_ACCOUNT_URL` | The provider's own account page — email, password, second factor, sessions. None of that belongs to this app, and without it the account menu simply does not link anywhere. Authentik serves it at `/if/user/`. |
 | `QRFORGE_DB_PATH` | SQLite path (default `./qrforge.db`). |
 | `QRFORGE_PUBLIC_HOST` | Public hostname the origin check compares against. Unset, the incoming `Host` is used, which is right behind a tunnel that preserves it — verified. Only needed behind a proxy that rewrites `Host` with an internal name. |
 | `QRFORGE_SESSION_TTL_HOURS` | Session lifetime, default 12 h and clamped to 1–24 h. |

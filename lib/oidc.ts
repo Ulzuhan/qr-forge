@@ -60,6 +60,28 @@ export function oidcConfig(): OidcConfig | null {
 }
 
 /** Si falta configuración, la aplicación no puede dejar entrar a nadie. */
+/**
+ * La página de la cuenta en el proveedor: correo, contraseña, segundo factor, sesiones.
+ *
+ * Nada de eso lo lleva esta aplicación, y hasta ahora no había ninguna puerta hacia
+ * ella: el menú de la cuenta tenía una sola línea, salir. Sin la variable no se enlaza
+ * a ninguna parte; la ruta es cosa de cada proveedor —Authentik la sirve en
+ * `/if/user/`— así que llega entera por entorno.
+ */
+export function accountUrl(): string | null {
+  const raw = process.env.QRFORGE_ACCOUNT_URL?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    const loopback = ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) return null;
+    if (url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function oidcConfigured(): boolean {
   return oidcConfig() !== null;
 }
