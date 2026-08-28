@@ -11,10 +11,35 @@ const display = Space_Grotesk({ variable: "--font-display", weight: ["500", "700
 const sans = Inter({ variable: "--font-sans", weight: ["400", "500"], subsets: ["latin"] });
 const mono = JetBrains_Mono({ variable: "--font-mono", weight: ["400", "500"], subsets: ["latin"] });
 
+/**
+ * The public origin, for canonical and social previews.
+ *
+ * QRFORGE_PUBLIC_URL already exists and is the most load-bearing variable here
+ * — it is what gets printed into every code — so canonical and Open Graph
+ * agree with the paper by construction. Unset, none is emitted: Next would
+ * resolve relative URLs against localhost, and a canonical pointing there is
+ * worse than no canonical at all.
+ */
+const publicUrl = process.env.QRFORGE_PUBLIC_URL?.trim();
+const base = publicUrl ? new URL(publicUrl) : undefined;
+
+const TITLE = "QR-Forge — dynamic QR codes you keep control of";
+const DESCRIPTION =
+  "Print the code once and change where it points forever after. Scans counted by day and country — never IP, never referrer. Self-hosted and open source.";
+
 export const metadata: Metadata = {
-  title: "QR-Forge — Dynamic QR Codes & Analytics",
-  description:
-    "Create dynamic, editable QR codes with scan tracking. Self-hosted.",
+  ...(base ? { metadataBase: base, alternates: { canonical: "/" } } : {}),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    type: "website",
+    siteName: "QR-Forge",
+    locale: "en_US",
+    ...(base ? { url: "/", images: [{ url: "/og.jpg", width: 760, height: 475, alt: "QR-Forge: one printed code whose destination is being changed" }] } : {}),
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default async function RootLayout({
