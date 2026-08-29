@@ -36,6 +36,13 @@ The only public route is **`/r/<slug>`**: it is what printed QR codes encode, an
 | `QRFORGE_MAX_CREATES_PER_HOUR` | Creation rate per identity and IP; default 120. |
 | `QRFORGE_SCAN_RETENTION_DAYS` | Scan retention; default 365 days. |
 
+**Losing access takes effect, and quickly.** `POST /api/auth/backchannel-logout`
+implements OIDC Back-Channel Logout, so the provider can end somebody's sessions
+here the moment it ends its own — point it at that URL in the client's *Logout
+URI*. Sessions also expire on their own after `QRFORGE_SESSION_TTL_HOURS` (12 by
+default, 24 maximum), which is the bound that holds even when no notification
+arrives: the provider only notifies clients whose access token is still alive.
+
 ## Development
 
 ```bash
