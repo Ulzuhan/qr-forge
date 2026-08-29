@@ -54,9 +54,8 @@ arrancar() {
     QRFORGE_OIDC_CLIENT_ID=pruebas \
     QRFORGE_OIDC_CLIENT_SECRET=pruebas \
     QRFORGE_OIDC_REDIRECT_URI="$BASE/api/auth/callback" \
-    QRFORGE_OIDC_PUBLIC_BASE="http://127.0.0.1:9999" \
+    QRFORGE_OIDC_ISSUER="http://127.0.0.1:9999/application/o/qr-forge/" \
     QRFORGE_OIDC_INTERNAL_BASE="http://127.0.0.1:9999" \
-    QRFORGE_OIDC_APP_SLUG=qrforge \
     QRFORGE_PUBLIC_URL="$BASE" \
     PORT="$PUERTO" \
     HOSTNAME=127.0.0.1 \

@@ -26,7 +26,7 @@ The only public route is **`/r/<slug>`**: it is what printed QR codes encode, an
 | `QRFORGE_PUBLIC_URL` | Public URL the app is served from (e.g. `https://qr.kaicorplabs.com`). **This is what gets printed into the QR codes**: pin it in production, or a QR generated from localhost or from inside the VPN will carry that private URL onto paper. If unset, it is derived from the request. |
 | `QRFORGE_OIDC_CLIENT_ID` / `_SECRET` | OIDC client credentials. Without them nobody can sign in. |
 | `QRFORGE_OIDC_REDIRECT_URI` | Must match one of the URIs registered in the provider. |
-| `QRFORGE_OIDC_PUBLIC_BASE` | The provider as the browser sees it. |
+| `QRFORGE_OIDC_ISSUER` | The provider's issuer URL. Every endpoint (authorize, token, userinfo, end-session, JWKS) is read from its `/.well-known/openid-configuration`, so no provider-specific paths are baked in |
 | `QRFORGE_OIDC_INTERNAL_BASE` | The provider as this server sees it — redeeming the authorization code never leaves the internal network. Falls back to `PUBLIC_BASE`. |
 | `QRFORGE_ACCOUNT_URL` | The provider's own account page — email, password, second factor, sessions. None of that belongs to this app, and without it the account menu simply does not link anywhere. Authentik serves it at `/if/user/`. |
 | `QRFORGE_DB_PATH` | SQLite path (default `./qrforge.db`). |
