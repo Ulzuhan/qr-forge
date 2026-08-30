@@ -46,6 +46,7 @@ export async function Landing({ baseUrl }: { baseUrl: string }) {
               </Link>
               <Link
                 href="/api/auth/login"
+                prefetch={false}
                 className="inline-flex h-12 items-center justify-center rounded-md border border-border px-7 text-base font-medium transition-colors hover:bg-muted"
               >
                 Sign in
