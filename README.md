@@ -19,6 +19,27 @@ Each account sees and manages **only its own QR codes**.
 
 The only public route is **`/r/<slug>`**: it is what printed QR codes encode, and it has to work for anyone, always, without a session. Everything else requires a session and also checks ownership; requesting someone else's QR returns 404, not 403, so the response does not confirm that the slug exists.
 
+## Prefilling from another tool
+
+`/new` accepts a preloaded form, so a tool that already has a URL can hand it
+over instead of asking someone to copy and paste it.
+
+```
+GET /new?url=<url-encoded>&title=<text>&from=linkup
+```
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `url` | yes | `http` or `https` only, up to 2000 characters. Without it there is no prefill. |
+| `title` | no | Trimmed to 100 characters, the API's own limit. |
+| `from` | no | Only `linkup` today. It selects the explanatory note, nothing else. |
+
+Anything invalid is ignored in silence and the form opens as usual — a broken
+URL is not the visitor's fault and an empty form is a perfectly useful answer.
+**Nothing is created until save is pressed.** If you arrive without a session,
+the intent survives the trip through the identity provider.
+
+
 ## Environment variables
 
 | Variable | Purpose |

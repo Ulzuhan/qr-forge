@@ -6,24 +6,39 @@ import { useState } from "react";
 type Tab = "dynamic" | "static";
 type StaticKind = "url" | "wifi" | "email" | "text";
 
-export function NewQrForm() {
+/**
+ * Lo que otra herramienta ha decidido por quien llega. Validado en el servidor
+ * (lib/intent.ts) antes de llegar aquí; este componente solo lo pinta.
+ */
+export type Initial = {
+  url: string;
+  title: string;
+  from: "linkup" | null;
+};
+
+export function NewQrForm({ initial }: { initial?: Initial | null }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("dynamic");
+  // Con intención se abre en estático: quien viene de LinkUp ya tiene un enlace
+  // que redirige, y hacerlo dinámico otra vez añadiría un salto y un segundo
+  // contador para la misma cosa. Puede cambiarlo, y la nota le dice qué gana.
+  const [tab, setTab] = useState<Tab>(initial ? "static" : "dynamic");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Common
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState("");
   const [campaign, setCampaign] = useState("");
   const [customSlug, setCustomSlug] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
   // Dynamic
-  const [destinationUrl, setDestinationUrl] = useState("https://");
+  // La misma URL en los dos campos a propósito: cambiar de pestaña no debe
+  // perder lo que vino en la intención.
+  const [destinationUrl, setDestinationUrl] = useState(initial?.url ?? "https://");
 
   // Static
-  const [staticKind, setStaticKind] = useState<StaticKind>("wifi");
+  const [staticKind, setStaticKind] = useState<StaticKind>(initial ? "url" : "wifi");
   // WiFi fields
   const [wifiSsid, setWifiSsid] = useState("");
   const [wifiPassword, setWifiPassword] = useState("");
@@ -36,7 +51,7 @@ export function NewQrForm() {
   // Text fields
   const [textContent, setTextContent] = useState("");
   // URL field (for static URL)
-  const [staticUrl, setStaticUrl] = useState("https://");
+  const [staticUrl, setStaticUrl] = useState(initial?.url ?? "https://");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +106,15 @@ export function NewQrForm() {
 
   return (
     <form onSubmit={handleSubmit} className="qr-editor space-y-5">
+      {initial?.from === "linkup" && (
+        <p className="qr-intent-note rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+          This link is already dynamic in LinkUp: the QR encodes it as-is and its
+          destination is changed there. Switch to Dynamic only if you want scan
+          statistics of their own — every scan will also count as a click in
+          LinkUp.
+        </p>
+      )}
+
       {/* Tabs */}
       <div className="qr-type-switch inline-flex rounded-md border border-border bg-muted p-1" role="tablist" aria-label="QR type">
         <button

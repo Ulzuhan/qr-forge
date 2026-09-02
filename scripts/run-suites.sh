@@ -19,7 +19,7 @@ RAIZ="$(mktemp -d)"
 export QRFORGE_DB_PATH="$RAIZ/pruebas.db"
 LOG="$(mktemp)"
 
-TODAS=(codigos)
+TODAS=(codigos intencion)
 SUITES=("${@:-${TODAS[@]}}")
 [ $# -gt 0 ] && SUITES=("$@")
 
