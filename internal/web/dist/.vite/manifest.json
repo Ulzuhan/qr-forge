@@ -1,0 +1,40 @@
+{
+  "src/fonts/display-500.woff2": {
+    "file": "assets/display-500-BhU9QXUp.woff2",
+    "src": "src/fonts/display-500.woff2"
+  },
+  "src/fonts/display-700.woff2": {
+    "file": "assets/display-500-BhU9QXUp.woff2",
+    "src": "src/fonts/display-500.woff2"
+  },
+  "src/fonts/mono-400.woff2": {
+    "file": "assets/mono-400-6fWv1k7M.woff2",
+    "src": "src/fonts/mono-400.woff2"
+  },
+  "src/fonts/mono-500.woff2": {
+    "file": "assets/mono-400-6fWv1k7M.woff2",
+    "src": "src/fonts/mono-400.woff2"
+  },
+  "src/fonts/sans-400.woff2": {
+    "file": "assets/sans-400-Dx4kXJAl.woff2",
+    "src": "src/fonts/sans-400.woff2"
+  },
+  "src/fonts/sans-500.woff2": {
+    "file": "assets/sans-400-Dx4kXJAl.woff2",
+    "src": "src/fonts/sans-400.woff2"
+  },
+  "src/main.tsx": {
+    "file": "assets/main-O-GOnCqy.js",
+    "name": "main",
+    "src": "src/main.tsx",
+    "isEntry": true,
+    "css": [
+      "assets/main-CYknN4hs.css"
+    ],
+    "assets": [
+      "assets/display-500-BhU9QXUp.woff2",
+      "assets/sans-400-Dx4kXJAl.woff2",
+      "assets/mono-400-6fWv1k7M.woff2"
+    ]
+  }
+}
