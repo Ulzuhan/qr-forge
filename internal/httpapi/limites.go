@@ -39,6 +39,12 @@ func leerJSON(r *http.Request, destino *map[string]any) error {
 	if err := json.Unmarshal(crudo, &m); err != nil {
 		return errors.New("cuerpo mal formado")
 	}
+	// `null`, `[]`, `"texto"` y `3` son JSON válido y NO son un objeto. Sin esta
+	// comprobación, `null` deja un mapa nil, la petición sigue adelante sin
+	// campos y un PATCH responde 200 habiendo mandado basura.
+	if m == nil {
+		return errors.New("cuerpo mal formado")
+	}
 	*destino = m
 	return nil
 }

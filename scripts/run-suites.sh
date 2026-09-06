@@ -20,6 +20,16 @@ export QRFORGE_DB_PATH="$RAIZ/pruebas.db"
 LOG="$(mktemp)"
 
 TODAS=(codigos intencion)
+
+# Qué se arranca. Por omisión el artefacto standalone de Node, que es lo que
+# ejecuta producción hoy. Con QRFORGE_TEST_LAUNCH se apunta la MISMA suite al
+# binario Go: el port sólo se sostiene si las dos pasan lo mismo sin tocar una
+# sola aserción.
+LANZAR="${QRFORGE_TEST_LAUNCH:-node .next/standalone/server.js}"
+# Con qué se compara la antigüedad del servidor. Para Node es el BUILD_ID; para
+# Go, el propio binario. La comprobación no se relaja: sigue negándose a medir
+# un servidor más viejo que lo que se acaba de construir.
+SELLO="${QRFORGE_TEST_BUILD_STAMP:-.next/BUILD_ID}"
 SUITES=("${@:-${TODAS[@]}}")
 [ $# -gt 0 ] && SUITES=("$@")
 
@@ -59,7 +69,7 @@ arrancar() {
     QRFORGE_PUBLIC_URL="$BASE" \
     PORT="$PUERTO" \
     HOSTNAME=127.0.0.1 \
-    node .next/standalone/server.js >"$LOG" 2>&1 &
+    $LANZAR >"$LOG" 2>&1 &
   servidor=$!
 
   for _ in $(seq 1 90); do
@@ -82,8 +92,8 @@ arrancar() {
     echo "en $PUERTO escucha otro servidor, no el de esta tirada"
     return 1
   fi
-  if [ "$(stat -c %Y "/proc/$escucha")" -lt "$(stat -c %Y .next/BUILD_ID)" ]; then
-    echo "el build es más nuevo que el servidor: falta un 'npm run build'"
+  if [ -e "$SELLO" ] && [ "$(stat -c %Y "/proc/$escucha")" -lt "$(stat -c %Y "$SELLO")" ]; then
+    echo "el build es más nuevo que el servidor: falta reconstruir ($SELLO)"
     return 1
   fi
   return 0

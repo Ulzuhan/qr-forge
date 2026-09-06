@@ -178,8 +178,10 @@ func (s *Server) avisoCierre(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusBadRequest, "sid-only logout is not supported")
 		return
 	case errors.Is(err, auth.ErrAvisoRepetido):
-		// Ya aplicado: el proveedor puede reintentar, y repetir no es un error.
-		escribirJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		// Un JTI repetido se rechaza, que es para lo que está el JTI. Se conserva
+		// el 400 de 0.5.0: no es uno de los fallos que había que corregir, y
+		// cambiarlo sería una diferencia de contrato que nadie pidió.
+		errorJSON(w, http.StatusBadRequest, "invalid logout_token")
 		return
 	case err != nil:
 		errorJSON(w, http.StatusBadRequest, "invalid logout_token")
