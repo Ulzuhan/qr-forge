@@ -32,23 +32,45 @@ La aplicación limita también el JSON en streaming a 64 KiB. Mantén `Referrer-
 
 Instala el standalone en `/opt/qr-forge`, incluidos `public`, `.next/static` y `scripts/{init-db.mjs,esquema.sql}`. Crea el usuario `qrforge`, `/var/lib/qrforge` con modo `0700` y `/etc/qr-forge.env` con modo `0600`. Copia `deploy/qr-forge.service`, ejecuta `systemctl daemon-reload` y habilita la unidad. El servidor debe tener Node en `/usr/bin/node` o debe ajustarse esa ruta.
 
-## La candidata en Go
+## El backend es Go desde 0.6.0
 
-`Dockerfile.go-candidate` construye la imagen con el backend en Go. El nombre es
-transitorio a propósito: `Dockerfile.go` haría que el herramental de Go intentara
-compilar el fichero. Al promover pasa a ser `Dockerfile`, el de Node se guarda
-como `Dockerfile.node` mientras haga falta, y CI se actualiza.
+`Dockerfile` construye la imagen con el backend en Go y la interfaz React
+embebida. El de Node queda en `Dockerfile.node` y **ya no se publica**: se
+conserva mientras dure la observación, porque es con lo que se valida el
+retorno a 0.5.0.
 
 Cambia una sola cosa de la receta: **desaparece el entrypoint de Node**. La base
-la inicializa el binario, que además nunca reinicializa una existente. En el
-compose de infraestructura eso son dos líneas —la imagen y
-`exec node scripts/container-entrypoint.mjs` → `exec qrforge`— y nada más:
-mismos puertos, volumen, redes, límites y variables.
+la inicializa el binario, que además nunca reinicializa una existente ni adopta
+una de otra aplicación. En el compose de infraestructura eso son dos líneas —la
+imagen y `exec node scripts/container-entrypoint.mjs` → `exec qrforge`— y nada
+más: mismos puertos, volumen, redes, límites y variables.
+
+### El apagado, y lo que no garantiza
+
+Al recibir SIGTERM el binario cierra el HTTP y espera; si el plazo vence con
+conexiones abiertas las cierra a la fuerza, **espera a que los manejadores
+salgan**, para los trabajos de fondo, escribe lo que quede en la cola de
+escaneos y sólo entonces cierra SQLite. El reparto es 5 + 1 + 1 + 1 segundos,
+dentro de los 10 de `stop_grace_period`.
+
+**Limitación conocida, y conviene tenerla escrita.** Cuando hay que forzar el
+cierre, las respuestas de las peticiones que seguían abiertas se truncan: quien
+estuviera descargando o esperando una respuesta la ve cortada. Es deliberado —la
+alternativa es consultar una base ya cerrada, que es peor— pero significa que un
+despliegue puede cortar peticiones en curso. Y si tras el plazo de manejadores
+alguno sigue dentro, se cierra igualmente y se registra: quedarse esperando sólo
+garantiza el SIGKILL del contenedor, que corta todo sin escribir nada. Los
+escaneos que no lleguen a escribirse se cuentan y se registran; la analítica es
+best-effort y no bloquea nunca una redirección.
 
 Probada con las restricciones productivas puestas (uid 10001, raíz de sólo
 lectura, tmpfs, `cap_drop: ALL`, no-new-privileges, 256 PIDs, 512 MiB, 1,5 CPU y
 el fichero de entorno): pasa a `healthy`, crea la base con WAL en el volumen y
 ocupa 2,8 MiB en reposo.
+
+`qrforge verificar` corre las comprobaciones caras —`integrity_check` y
+`foreign_key_check`— para validar un despliegue o hacer mantenimiento. El
+healthcheck no las hace: recorrerían la base entera cada treinta segundos.
 
 **Vuelta atrás**: la imagen 0.5.0 anterior, sobre la misma base. Está probado
 —Node 0.5.0 → Go → Node sobre la misma base sintética— que lo que escribe una lo

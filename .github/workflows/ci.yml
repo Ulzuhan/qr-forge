@@ -93,7 +93,7 @@ jobs:
       # puede ver lo que se rompe DENTRO de la imagen —un PostCSS que no entra
       # en su build, un fichero que no se copia—. Correrlo sólo contra el
       # binario deja esa parte sin acreditar en CI.
-      - run: docker build -f Dockerfile.go-candidate -t qrforge-go:ci .
+      - run: docker build -t qrforge-go:ci .
 
       - name: El recorrido en navegador, contra la imagen
         env:
