@@ -34,6 +34,11 @@ Instala el standalone en `/opt/qr-forge`, incluidos `public`, `.next/static` y `
 
 ## El backend es Go desde 0.6.0
 
+**Desplegado el 07-09-2026.** Digest en producción:
+`ghcr.io/ulzuhan/qr-forge:0.6.0@sha256:d0a6a5b93aef6de10792b74f946eb2b456975f3486e3adbf345281f0a6e9a672`
+(el índice, que es lo que resuelve la etiqueta; el manifiesto amd64 es
+`sha256:9935238f…`). Retorno: `0.5.0@sha256:cbe1f7a1…`.
+
 `Dockerfile` construye la imagen con el backend en Go y la interfaz React
 embebida. El de Node queda en `Dockerfile.node` y **ya no se publica**: se
 conserva mientras dure la observación, porque es con lo que se valida el
