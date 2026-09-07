@@ -198,33 +198,62 @@ func main() {
 	go func() {
 		defer close(cerrado)
 		<-ctx.Done()
-		cierre, cancelar := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancelar()
-		if err := http1.Shutdown(cierre); err != nil {
-			log.Printf("cierre HTTP con plazo agotado: %v", err)
-		}
+		apagar(http1, servidor, almacen, pararTareas, &tareas)
 	}()
 
 	log.Printf("qrforge escuchando en %s, base %s, origen impreso %s", http1.Addr, ruta, publica)
 	if err := http1.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
-
-	// Orden del apagado, y cada paso depende del anterior:
-	//   1. que no queden peticiones en vuelo,
-	//   2. que los trabajos de fondo hayan terminado,
-	//   3. escribir lo que quedara en la cola de escaneos,
-	//   4. y sólo entonces cerrar la base.
 	<-cerrado
+	log.Print("qrforge parado")
+}
+
+// El presupuesto de parada, y de dónde sale ese número.
+//
+// El contenedor no declara `stop_grace_period`, así que Docker manda SIGTERM y
+// SIGKILL **10 segundos** después. Todo el apagado tiene que caber ahí dentro:
+// con los 15 s de cierre HTTP y 5 s de drenaje que había antes, el proceso
+// moría a mitad del drenaje y se perdía justo lo que se quería salvar.
+//
+// 6 + 2 deja dos segundos de margen. Si alguna vez hace falta más, se sube
+// `stop_grace_period` primero y estos números después, en ese orden.
+const (
+	plazoCierreHTTP = 6 * time.Second
+	plazoDrenaje    = 2 * time.Second
+)
+
+// apagar es la secuencia de parada, y cada paso depende del anterior:
+//
+//  1. que no queden peticiones en vuelo —o forzarlas, si se acaba el plazo—,
+//  2. que los trabajos de fondo hayan terminado,
+//  3. escribir lo que quedara en la cola de escaneos,
+//  4. y sólo entonces cerrar la base.
+func apagar(http1 *http.Server, servidor *httpapi.Server, almacen *store.Store,
+	pararTareas context.CancelFunc, tareas *sync.WaitGroup) {
+	cierre, cancelar := context.WithTimeout(context.Background(), plazoCierreHTTP)
+	defer cancelar()
+	if err := http1.Shutdown(cierre); err != nil {
+		// El plazo se agotó con conexiones todavía abiertas. Seguir a cerrar
+		// SQLite con peticiones vivas es justo lo que este orden evita, así que
+		// se cortan a la fuerza y se dice: una respuesta truncada es mala, y una
+		// consulta contra una base cerrada es peor.
+		log.Printf("el cierre HTTP no terminó en %s (%v): se cierran las conexiones a la fuerza", plazoCierreHTTP, err)
+		if err := http1.Close(); err != nil {
+			log.Printf("al forzar el cierre de conexiones: %v", err)
+		}
+	}
+
 	pararTareas()
 	tareas.Wait()
-	if escritos, perdidos := servidor.DrenarEscaneos(5 * time.Second); escritos > 0 || perdidos > 0 {
-		log.Printf("al cerrar: %d escaneos escritos, %d perdidos por plazo", escritos, perdidos)
+
+	if d := servidor.DrenarEscaneos(plazoDrenaje); !d.Vacio() {
+		log.Printf("al cerrar: %d escaneos escritos, %d con error de escritura, %d sin escribir por plazo",
+			d.Escritos, d.Fallidos, d.Pendientes)
 	}
 	if err := almacen.Close(); err != nil {
 		log.Printf("al cerrar la base: %v", err)
 	}
-	log.Print("qrforge parado")
 }
 
 // limpiar retira sesiones caducadas y escaneos fuera de la retención: al

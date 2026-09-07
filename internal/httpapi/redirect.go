@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"regexp"
 	"time"
@@ -108,40 +109,63 @@ func (s *Server) AtenderEscaneos(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case e := <-s.escaneos:
-			s.registrar(e)
+			registrar, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := s.almacen.RegistrarEscaneo(registrar, e.QrID, e.UserAgent, e.Pais); err != nil {
+				// La analítica es best-effort, pero un fallo silencioso no deja
+				// forma de saber que se están perdiendo escaneos.
+				log.Printf("no se pudo registrar un escaneo: %v", err)
+			}
+			cancel()
 		}
 	}
 }
 
-// DrenarEscaneos escribe lo que quede en la cola, con plazo. Se llama al parar,
-// DESPUÉS de que el consumidor haya terminado y ANTES de cerrar la base.
+// Drenaje es el resultado real de vaciar la cola al parar. Los tres números son
+// distintos y hay que distinguirlos: escrito no es lo mismo que intentado.
+type Drenaje struct {
+	// Escritos son los que están EN LA BASE.
+	Escritos int
+	// Fallidos se intentaron y la escritura devolvió error.
+	Fallidos int
+	// Pendientes seguían en la cola cuando se acabó el plazo.
+	Pendientes int
+}
+
+func (d Drenaje) Vacio() bool { return d.Escritos == 0 && d.Fallidos == 0 && d.Pendientes == 0 }
+
+// DrenarEscaneos escribe lo que quede en la cola. Se llama al parar, DESPUÉS de
+// que el consumidor haya terminado y ANTES de cerrar la base.
 //
-// Sin esto, un despliegue perdía los escaneos que estuvieran en cola: se cancela
-// el consumidor, el proceso se va y las filas nunca se escriben. Son pocas y son
-// best-effort, pero perderlas en cada despliegue es una pérdida sistemática, no
-// un accidente. Devuelve cuántas escribió y cuántas se quedaron fuera.
-func (s *Server) DrenarEscaneos(plazo time.Duration) (escritos, perdidos int) {
-	limite := time.Now().Add(plazo)
+// Sin esto, un despliegue perdía los escaneos encolados: se cancela el
+// consumidor, el proceso se va y las filas nunca se escriben. Son pocas y son
+// best-effort, pero perderlas en CADA despliegue es una pérdida sistemática.
+//
+// El plazo es GLOBAL, no por escaneo. Con un plazo por escritura, una cola de
+// doscientos podía tardar doscientas veces más que el presupuesto de parada, y
+// el contenedor mata el proceso a la mitad — que es exactamente lo que se
+// estaba intentando evitar.
+func (s *Server) DrenarEscaneos(plazo time.Duration) Drenaje {
+	ctx, cancel := context.WithTimeout(context.Background(), plazo)
+	defer cancel()
+	var d Drenaje
 	for {
 		select {
 		case e := <-s.escaneos:
-			if time.Now().After(limite) {
-				// Se acabó el plazo: se cuentan las que quedan y se dice.
-				perdidos = 1 + len(s.escaneos)
-				return escritos, perdidos
+			if err := s.almacen.RegistrarEscaneo(ctx, e.QrID, e.UserAgent, e.Pais); err != nil {
+				d.Fallidos++
+				// Si se acabó el plazo, lo que queda ya no se va a escribir: se
+				// cuenta y se sale, en vez de intentarlo doscientas veces más.
+				if ctx.Err() != nil {
+					d.Pendientes = len(s.escaneos)
+					return d
+				}
+			} else {
+				d.Escritos++
 			}
-			s.registrar(e)
-			escritos++
 		default:
-			return escritos, 0
+			return d
 		}
 	}
-}
-
-func (s *Server) registrar(e escaneo) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = s.almacen.RegistrarEscaneo(ctx, e.QrID, e.UserAgent, e.Pais)
 }
 
 func (s *Server) textoPlano(w http.ResponseWriter, estado int, cuerpo string) {

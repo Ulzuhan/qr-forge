@@ -76,11 +76,23 @@ bytes válidos de cookie.
 **El aislamiento.** Un QR ajeno responde igual que uno inexistente —404, o la
 pantalla de no encontrado— en ver, editar, borrar y estadísticas.
 
-**El apagado es ordenado.** Al recibir la señal: se cierra el HTTP y se
-**espera** a que termine, se paran los trabajos de fondo, se escribe lo que
-quede en la cola de escaneos con un plazo de 5 s, y sólo entonces se cierra
-SQLite. Cerrar la base mientras hay peticiones en vuelo, o irse con la cola
-llena, perdería escaneos en cada despliegue.
+**El apagado es ordenado y cabe en el plazo del contenedor.** Al recibir la
+señal: se cierra el HTTP y se **espera** a que termine —y si el plazo se agota
+con conexiones abiertas, se cierran a la fuerza antes de seguir, porque una
+respuesta truncada es mala y una consulta contra una base cerrada es peor—, se
+paran los trabajos de fondo, se drena la cola de escaneos y sólo entonces se
+cierra SQLite.
+
+El presupuesto es **6 s de cierre HTTP + 2 s de drenaje**, dentro de los 10 s de
+`stop_grace_period` que declara el compose. Ese reparto no es decorativo: con
+los 15 + 5 anteriores el contenedor mataba el proceso a mitad del drenaje, que
+es justo lo que el drenaje evita. El plazo del drenaje es **global**, no por
+escaneo: con uno por escritura, una cola de doscientos tardaría doscientas veces
+más que el presupuesto.
+
+Y el resultado se cuenta de verdad: escritos, fallidos y pendientes son tres
+números distintos. Un error de escritura descartado con `_ =` hacía que el
+registro dijera «3 escaneos escritos» con cero filas en la base.
 
 **El healthcheck es barato.** `/api/health` hace una consulta acotada y nada
 más. Las comprobaciones completas —`integrity_check` y `foreign_key_check`—

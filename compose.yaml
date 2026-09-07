@@ -7,6 +7,10 @@ services:
       dockerfile: Dockerfile.go-candidate
     restart: unless-stopped
     init: true
+    # Declarado, no heredado: el binario reparte su parada dentro de este plazo
+    # (6 s de cierre HTTP + 2 s de drenaje de escaneos, con margen). Subirlo aquí
+    # antes que allí; bajarlo sin tocar el binario dejaría el drenaje a medias.
+    stop_grace_period: 10s
     ports:
       - "127.0.0.1:3459:3459"
     env_file:
