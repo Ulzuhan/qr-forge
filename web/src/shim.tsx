@@ -16,17 +16,31 @@ export default function Link({
   return <a href={href} {...resto}>{children}</a>;
 }
 
+// Una navegación pedida con `push` deja de estar pendiente sólo cuando la
+// página se va. Hasta entonces, un `refresh` la CANCELARÍA y recargaría la
+// página actual.
+//
+// No es teórico: los formularios hacen `router.push(destino)` y justo después
+// `router.refresh()` —en Next eso es legítimo, porque refresca los datos del
+// servidor de la ruta a la que se acaba de ir—. Con `assign` + `reload` el
+// resultado era volver a cargar el formulario y quedarse ahí, con el QR ya
+// creado y sin decir nada.
+let navegando = false;
+
 export function useRouter() {
   return {
     // Navegación de verdad: la página siguiente la compone Go con la sesión ya
     // resuelta. Un router de cliente tendría que rehacer ese trabajo.
     push(url: string) {
+      navegando = true;
       window.location.assign(url);
     },
     refresh() {
+      if (navegando) return;
       window.location.reload();
     },
     back() {
+      navegando = true;
       window.history.back();
     },
   };

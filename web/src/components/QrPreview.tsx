@@ -105,10 +105,26 @@ export async function downloadQr(
       margin: 2,
       color: { dark: fgColor, light: bgColor },
     });
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    triggerDownload(blob, `${filename}.png`);
+    triggerDownload(blobDeDataUrl(dataUrl), `${filename}.png`);
   }
+}
+
+/**
+ * Convierte el `data:` URL que devuelve la librería en un Blob, sin red.
+ *
+ * Antes esto era un `fetch(dataUrl)`, que es una petición aunque no salga de la
+ * máquina — y la CSP la bloquea, con razón: `connect-src` está en `\'self\'` y
+ * abrirla a `data:` para esto sería aflojar la política por una conversión que
+ * no necesita red. El resultado era una descarga que fallaba siempre y un
+ * «Could not generate the file» que no explicaba por qué.
+ */
+function blobDeDataUrl(dataUrl: string): Blob {
+  const [cabecera, datos] = dataUrl.split(",", 2);
+  const tipo = /:(.*?);/.exec(cabecera)?.[1] ?? "application/octet-stream";
+  const crudo = atob(datos);
+  const bytes = new Uint8Array(crudo.length);
+  for (let i = 0; i < crudo.length; i++) bytes[i] = crudo.charCodeAt(i);
+  return new Blob([bytes], { type: tipo });
 }
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -119,5 +135,9 @@ function triggerDownload(blob: Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // El revoke va DESPUÉS, no en la misma vuelta del bucle de eventos: el
+  // navegador aún no ha empezado a leer el blob cuando `click()` retorna, y
+  // revocarlo ahí cancela la descarga. Falla de forma intermitente, que es la
+  // peor manera de fallar.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

@@ -1,22 +1,36 @@
+import { useEffect, useState } from "react";
 import Link from "../shim";
 import QRCode from "qrcode";
 
 /**
  * Lo que ve quien no ha entrado.
  *
- * Se renderiza entera en el servidor y no lleva JavaScript de cliente: es lo
- * primero que carga un desconocido, casi siempre desde el móvil, y no hay nada
- * aquí que necesite hidratarse para servir de algo.
- *
  * El QR de la demo es de verdad, generado aquí mismo y escaneable: apunta a
  * esta misma página. Enseñar el producto funcionando dice más que describirlo.
+ *
+ * Era un componente `async`, que en Next significa «de servidor». En el
+ * navegador un componente async devuelve una promesa y React la trata como una
+ * suspensión: la página entera se quedaba en blanco con el error 482 y sin
+ * decir de dónde venía. El QR se genera ahora en un efecto, que es lo mismo en
+ * un instante y no bloquea el primer pintado.
  */
-export async function Landing({ baseUrl }: { baseUrl: string }) {
-  const demoQr = await QRCode.toString(baseUrl, {
-    type: "svg",
-    margin: 0,
-    color: { dark: "#000000", light: "#ffffff" },
-  });
+export function Landing({ baseUrl }: { baseUrl: string }) {
+  const [demoQr, setDemoQr] = useState("");
+
+  useEffect(() => {
+    let vigente = true;
+    QRCode.toString(baseUrl, {
+      type: "svg",
+      margin: 0,
+      color: { dark: "#000000", light: "#ffffff" },
+    }).then((svg) => {
+      if (vigente) setDemoQr(svg);
+    }, () => {
+      // Si no se puede dibujar la demo, la portada sigue sirviendo: es una
+      // ilustración, no el producto.
+    });
+    return () => { vigente = false; };
+  }, [baseUrl]);
 
   return (
     <div className="kc-product-landing flex flex-1 flex-col">
