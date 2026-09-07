@@ -1,6 +1,10 @@
 services:
   qr-forge:
-    build: .
+    # La candidata en Go. Al promover, esto vuelve a ser `build: .` porque el
+    # Dockerfile pasará a ser éste.
+    build:
+      context: .
+      dockerfile: Dockerfile.go-candidate
     restart: unless-stopped
     init: true
     ports:

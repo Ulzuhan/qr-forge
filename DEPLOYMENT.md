@@ -32,6 +32,30 @@ La aplicación limita también el JSON en streaming a 64 KiB. Mantén `Referrer-
 
 Instala el standalone en `/opt/qr-forge`, incluidos `public`, `.next/static` y `scripts/{init-db.mjs,esquema.sql}`. Crea el usuario `qrforge`, `/var/lib/qrforge` con modo `0700` y `/etc/qr-forge.env` con modo `0600`. Copia `deploy/qr-forge.service`, ejecuta `systemctl daemon-reload` y habilita la unidad. El servidor debe tener Node en `/usr/bin/node` o debe ajustarse esa ruta.
 
+## La candidata en Go
+
+`Dockerfile.go-candidate` construye la imagen con el backend en Go. El nombre es
+transitorio a propósito: `Dockerfile.go` haría que el herramental de Go intentara
+compilar el fichero. Al promover pasa a ser `Dockerfile`, el de Node se guarda
+como `Dockerfile.node` mientras haga falta, y CI se actualiza.
+
+Cambia una sola cosa de la receta: **desaparece el entrypoint de Node**. La base
+la inicializa el binario, que además nunca reinicializa una existente. En el
+compose de infraestructura eso son dos líneas —la imagen y
+`exec node scripts/container-entrypoint.mjs` → `exec qrforge`— y nada más:
+mismos puertos, volumen, redes, límites y variables.
+
+Probada con las restricciones productivas puestas (uid 10001, raíz de sólo
+lectura, tmpfs, `cap_drop: ALL`, no-new-privileges, 256 PIDs, 512 MiB, 1,5 CPU y
+el fichero de entorno): pasa a `healthy`, crea la base con WAL en el volumen y
+ocupa 2,8 MiB en reposo.
+
+**Vuelta atrás**: la imagen 0.5.0 anterior, sobre la misma base. Está probado
+—Node 0.5.0 → Go → Node sobre la misma base sintética— que lo que escribe una lo
+lee la otra y que volver no resucita escaneos ni sesiones revocadas. El backup es
+recuperación de desastre, no rollback: restaurarlo perdería escaneos y podría
+reactivar sesiones ya cerradas.
+
 ## Datos, privacidad y retención
 
 QR Forge persiste cuentas espejo, sesiones, códigos y escaneos. No guarda IP ni Referer de los escaneos; conserva sólo fecha, país validado y User-Agent truncado. `QRFORGE_SCAN_RETENTION_DAYS` vale 365 por defecto y la limpieza corre al arrancar y cada seis horas. Los límites son 1000 QR por cuenta y 120 creaciones por hora de identidad+IP por defecto.
