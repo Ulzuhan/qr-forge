@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -95,12 +96,44 @@ func sonda() int {
 	return 0
 }
 
+// verificar corre las comprobaciones CARAS de la base: la estructural y la de
+// claves foráneas, que es distinta y hay que pedir aparte.
+//
+// Va aquí y no en el healthcheck: ahí se ejecutarían cada treinta segundos
+// recorriendo la base entera y ocupando la única conexión de la aplicación.
+// Esto es para la validación de un despliegue y para mantenimiento, con el
+// servicio parado o sabiendo que va a costar.
+func verificar() int {
+	ruta := os.Getenv("QRFORGE_DB_PATH")
+	if ruta == "" {
+		ruta = "/data/qrforge.db"
+	}
+	almacen, err := store.Open(ruta)
+	if err != nil {
+		log.Printf("no se pudo abrir la base: %v", err)
+		return 1
+	}
+	defer almacen.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := almacen.Integridad(ctx); err != nil {
+		log.Printf("la base NO está íntegra: %v", err)
+		return 1
+	}
+	log.Print("integridad y claves foráneas: correctas")
+	return 0
+}
+
 func main() {
 	if len(os.Args) > 1 {
-		if os.Args[1] != "health" || len(os.Args) > 2 {
-			log.Fatalf("uso: %s [health]", os.Args[0])
+		switch {
+		case os.Args[1] == "health" && len(os.Args) == 2:
+			os.Exit(sonda())
+		case os.Args[1] == "verificar" && len(os.Args) == 2:
+			os.Exit(verificar())
+		default:
+			log.Fatalf("uso: %s [health|verificar]", os.Args[0])
 		}
-		os.Exit(sonda())
 	}
 
 	ruta := os.Getenv("QRFORGE_DB_PATH")
@@ -119,8 +152,6 @@ func main() {
 		// Una base que no encaja no se sustituye por una vacía: se para y se dice.
 		log.Fatalf("no se pudo preparar la base: %v", err)
 	}
-	defer almacen.Close()
-
 	oidc := auth.DesdeEntorno()
 	if oidc == nil {
 		log.Print("aviso: sin configuración OIDC; no se podrá iniciar sesión")
@@ -151,22 +182,49 @@ func main() {
 	ctx, parar := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer parar()
 
-	// El consumidor de la cola de escaneos y el temporizador de limpieza son
-	// cancelables: al parar, terminan; no quedan tareas sueltas.
-	go servidor.AtenderEscaneos(ctx)
-	go limpiar(ctx, almacen, retencion)
+	// El consumidor de escaneos vive en su PROPIO contexto, que se cancela más
+	// tarde que el HTTP: mientras se drenan las conexiones abiertas todavía
+	// pueden llegar escaneos, y cancelarlo a la vez los perdería.
+	ctxTareas, pararTareas := context.WithCancel(context.Background())
+	var tareas sync.WaitGroup
+	tareas.Add(2)
+	go func() { defer tareas.Done(); servidor.AtenderEscaneos(ctxTareas) }()
+	go func() { defer tareas.Done(); limpiar(ctxTareas, almacen, retencion) }()
 
+	// El cierre se ESPERA. Antes iba en una goroutine suelta y `ListenAndServe`
+	// devolvía ErrServerClosed en cuanto empezaba el apagado: main seguía, y
+	// cerraba SQLite mientras las peticiones en vuelo todavía la usaban.
+	cerrado := make(chan struct{})
 	go func() {
+		defer close(cerrado)
 		<-ctx.Done()
 		cierre, cancelar := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancelar()
-		_ = http1.Shutdown(cierre)
+		if err := http1.Shutdown(cierre); err != nil {
+			log.Printf("cierre HTTP con plazo agotado: %v", err)
+		}
 	}()
 
 	log.Printf("qrforge escuchando en %s, base %s, origen impreso %s", http1.Addr, ruta, publica)
 	if err := http1.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+
+	// Orden del apagado, y cada paso depende del anterior:
+	//   1. que no queden peticiones en vuelo,
+	//   2. que los trabajos de fondo hayan terminado,
+	//   3. escribir lo que quedara en la cola de escaneos,
+	//   4. y sólo entonces cerrar la base.
+	<-cerrado
+	pararTareas()
+	tareas.Wait()
+	if escritos, perdidos := servidor.DrenarEscaneos(5 * time.Second); escritos > 0 || perdidos > 0 {
+		log.Printf("al cerrar: %d escaneos escritos, %d perdidos por plazo", escritos, perdidos)
+	}
+	if err := almacen.Close(); err != nil {
+		log.Printf("al cerrar la base: %v", err)
+	}
+	log.Print("qrforge parado")
 }
 
 // limpiar retira sesiones caducadas y escaneos fuera de la retención: al

@@ -108,11 +108,40 @@ func (s *Server) AtenderEscaneos(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case e := <-s.escaneos:
-			registrar, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = s.almacen.RegistrarEscaneo(registrar, e.QrID, e.UserAgent, e.Pais)
-			cancel()
+			s.registrar(e)
 		}
 	}
+}
+
+// DrenarEscaneos escribe lo que quede en la cola, con plazo. Se llama al parar,
+// DESPUÉS de que el consumidor haya terminado y ANTES de cerrar la base.
+//
+// Sin esto, un despliegue perdía los escaneos que estuvieran en cola: se cancela
+// el consumidor, el proceso se va y las filas nunca se escriben. Son pocas y son
+// best-effort, pero perderlas en cada despliegue es una pérdida sistemática, no
+// un accidente. Devuelve cuántas escribió y cuántas se quedaron fuera.
+func (s *Server) DrenarEscaneos(plazo time.Duration) (escritos, perdidos int) {
+	limite := time.Now().Add(plazo)
+	for {
+		select {
+		case e := <-s.escaneos:
+			if time.Now().After(limite) {
+				// Se acabó el plazo: se cuentan las que quedan y se dice.
+				perdidos = 1 + len(s.escaneos)
+				return escritos, perdidos
+			}
+			s.registrar(e)
+			escritos++
+		default:
+			return escritos, 0
+		}
+	}
+}
+
+func (s *Server) registrar(e escaneo) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = s.almacen.RegistrarEscaneo(ctx, e.QrID, e.UserAgent, e.Pais)
 }
 
 func (s *Server) textoPlano(w http.ResponseWriter, estado int, cuerpo string) {

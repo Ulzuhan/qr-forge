@@ -298,3 +298,62 @@ func insertarEscaneo(t *testing.T, s *Store, qrID string, cuando time.Time, pais
 		t.Fatal(err)
 	}
 }
+
+// Una base de OTRA aplicación no se toca. Contando sólo las tablas nuestras,
+// una base ajena daba cero y se trataba como instalación nueva: no se borraba
+// nada, pero se le escribía el esquema de QR-Forge encima, que es justo lo
+// contrario de lo que este código promete.
+func TestUnaBaseDeOtraAplicacionNoSeAdopta(t *testing.T) {
+	ruta := filepath.Join(t.TempDir(), "ajena.db")
+	db, err := sql.Open("sqlite", ruta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE facturas (id integer primary key, importe integer);
+		INSERT INTO facturas (importe) VALUES (100)`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	s, err := Open(ruta)
+	if err == nil {
+		s.Close()
+		t.Fatal("adoptó una base de otra aplicación")
+	}
+
+	db, _ = sql.Open("sqlite", ruta)
+	defer db.Close()
+	var tablas int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).Scan(&tablas); err != nil {
+		t.Fatal(err)
+	}
+	if tablas != 1 {
+		t.Fatalf("la base ajena tiene ahora %d tablas: se le escribió encima", tablas)
+	}
+	var filas int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM facturas`).Scan(&filas); err != nil || filas != 1 {
+		t.Fatalf("sus datos: %d filas, %v", filas, err)
+	}
+}
+
+// La sonda del healthcheck es barata y funciona con la base vacía, que es el
+// estado normal de una instalación recién hecha.
+func TestLaSondaValeConLaBaseVacia(t *testing.T) {
+	s := abrir(t)
+	if err := s.Vivo(context.Background()); err != nil {
+		t.Fatalf("una base vacía no está viva: %v", err)
+	}
+	u := usuario(t, s, "sub-vivo")
+	if _, err := s.CrearQR(context.Background(), NuevoQR{UserID: u.ID, Type: "dynamic",
+		DestinationURL: ptr("https://example.com"), Title: "x"}, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Vivo(context.Background()); err != nil {
+		t.Fatalf("con datos tampoco: %v", err)
+	}
+	// Y sigue siendo barata: cerrada la base, falla en vez de colgarse.
+	s.Close()
+	if err := s.Vivo(context.Background()); err == nil {
+		t.Fatal("una base cerrada se declaró viva")
+	}
+}

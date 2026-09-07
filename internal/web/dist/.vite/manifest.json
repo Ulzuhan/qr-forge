@@ -24,12 +24,12 @@
     "src": "src/fonts/sans-400.woff2"
   },
   "src/main.tsx": {
-    "file": "assets/main-CDr60HD6.js",
+    "file": "assets/main-D-KVtPsg.js",
     "name": "main",
     "src": "src/main.tsx",
     "isEntry": true,
     "css": [
-      "assets/main-CYknN4hs.css"
+      "assets/main-BUYr90BF.css"
     ],
     "assets": [
       "assets/display-500-BhU9QXUp.woff2",

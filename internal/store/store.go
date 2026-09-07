@@ -80,19 +80,32 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) AhoraCon(f func() time.Time) { s.now = f }
 
 func (s *Store) preparar() error {
-	var tablas int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('users','sessions','qr_codes','qr_scans')`).Scan(&tablas)
+	// Dos cuentas, no una: cuántas tablas hay EN TOTAL y cuántas son nuestras.
+	//
+	// Contando sólo las nuestras, una base de otra aplicación da cero y se
+	// trataba como instalación nueva: no se borraba nada, pero se le añadía el
+	// esquema de QR-Forge encima, que contradice justo lo que este código
+	// promete. Una base con tablas que no son suyas se rechaza.
+	var propias, totales int
+	err := s.db.QueryRow(
+		`SELECT
+		   (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('users','sessions','qr_codes','qr_scans')),
+		   (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%')`).
+		Scan(&propias, &totales)
 	if err != nil {
 		return fmt.Errorf("no se pudo inspeccionar la base: %w", err)
 	}
-	if tablas == 0 {
-		// Instalación nueva. Es el único momento en que se escribe el esquema.
+	if totales == 0 {
+		// Vacía de verdad. Es el único momento en que se escribe el esquema.
 		if _, err := s.db.Exec(esquema); err != nil {
 			return fmt.Errorf("no se pudo crear el esquema: %w", err)
 		}
 		return s.comprobarAjustes()
 	}
-	if tablas != len(requeridas) {
+	if propias == 0 {
+		return errors.New("la base tiene tablas que no son de QR-Forge; no se escribe encima de una base ajena")
+	}
+	if propias != len(requeridas) {
 		// Media base es peor que ninguna: no se completa a ciegas.
 		return errors.New("la base existe pero le faltan tablas de QR-Forge; no se reinicializa una base con datos")
 	}
@@ -161,6 +174,11 @@ func (s *Store) comprobarAjustes() error {
 // Integridad corre las dos comprobaciones que importan tras un cambio de
 // implementación: la estructural y la de claves foráneas, que es distinta y
 // hay que pedir aparte.
+//
+// Es CARA y recorre la base entera. Va en la validación del despliegue y en
+// mantenimiento —`qrforge verificar`—, nunca en el healthcheck: ahí se
+// ejecutaría cada treinta segundos ocupando la única conexión que tiene toda
+// la aplicación.
 func (s *Store) Integridad(ctx context.Context) error {
 	var resultado string
 	if err := s.db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&resultado); err != nil {
@@ -178,6 +196,22 @@ func (s *Store) Integridad(ctx context.Context) error {
 		return errors.New("foreign_key_check encontró filas huérfanas")
 	}
 	return filas.Err()
+}
+
+// Vivo es la sonda del healthcheck: barata y acotada. Toca la base de verdad
+// —una tabla nuestra, no un `SELECT 1` que responde con el fichero corrupto—
+// pero sin recorrerla.
+func (s *Store) Vivo(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	var uno int
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM qr_codes LIMIT 1`).Scan(&uno)
+	// Sin filas es perfectamente sano: la tabla existe y se pudo leer, que es
+	// justo lo que se está preguntando.
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	return err
 }
 
 // segundos y deSegundos son la frontera con el disco. Todo lo demás en Go usa

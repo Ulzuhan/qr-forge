@@ -161,7 +161,14 @@ func errorJSON(w http.ResponseWriter, estado int, mensaje string) {
 func (s *Server) salud(w http.ResponseWriter, r *http.Request) {
 	// El healthcheck NO visita un QR real: crearía escaneos y ensuciaría las
 	// estadísticas de alguien cada treinta segundos.
-	if err := s.almacen.Integridad(r.Context()); err != nil {
+	//
+	// Y es BARATO. Antes corría `integrity_check` y `foreign_key_check`, que
+	// recorren la base entera: cada treinta segundos por Docker, ocupando la
+	// única conexión que tiene toda la aplicación, y accesible sin sesión — o
+	// sea, un botón gratis para dejar el servicio de rodillas. Las
+	// comprobaciones completas están en `qrforge verificar`, para la validación
+	// del despliegue y el mantenimiento.
+	if err := s.almacen.Vivo(r.Context()); err != nil {
 		errorJSON(w, http.StatusServiceUnavailable, "unhealthy")
 		return
 	}
@@ -230,7 +237,11 @@ func (s *Server) exigirOrigen(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (s *Server) robots(w http.ResponseWriter, r *http.Request) {
-	cuerpo := "User-Agent: *\nAllow: /\nDisallow: /api/\n\n"
+	// Las tres exclusiones de 0.5.0, y `/r/` es la que más importa: son las
+	// redirecciones impresas en papel. Tienen que funcionar para cualquiera,
+	// siempre, pero no son contenido —son fontanería— y cada una indexada es un
+	// escaneo atribuido a un rastreador en vez de a una persona.
+	cuerpo := "User-Agent: *\nAllow: /\nDisallow: /r/\nDisallow: /api/\nDisallow: /new\n\n"
 	if s.publicURL != "" {
 		cuerpo += "Host: " + s.publicURL + "\nSitemap: " + s.publicURL + "/sitemap.xml\n"
 	}

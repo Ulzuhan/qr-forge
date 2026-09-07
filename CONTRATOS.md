@@ -36,6 +36,11 @@ son de 7 caracteres del alfabeto sin ambigüedades, con aleatoriedad
 criptográfica: con un generador predecible, quien cree unos cuantos códigos
 propios puede adivinar los que generen otros y contaminarles las analíticas.
 
+**Lo que lee un rastreador.** `robots.txt` excluye `/r/`, `/api/` y `/new`, en
+ese orden y byte a byte igual que 0.5.0. `/r/` es la que más importa: son las
+redirecciones impresas, y cada una indexada es un escaneo atribuido a un
+rastreador en vez de a una persona.
+
 **El redirect es lo primero.** `/r/<slug>` responde 302 con `no-store`;
 desconocido 404, estático 400, desactivado o caducado 410. El límite de 30
 escaneos por minuto y slug+IP **limita el REGISTRO, nunca la redirección**: un
@@ -70,6 +75,23 @@ bytes válidos de cookie.
 
 **El aislamiento.** Un QR ajeno responde igual que uno inexistente —404, o la
 pantalla de no encontrado— en ver, editar, borrar y estadísticas.
+
+**El apagado es ordenado.** Al recibir la señal: se cierra el HTTP y se
+**espera** a que termine, se paran los trabajos de fondo, se escribe lo que
+quede en la cola de escaneos con un plazo de 5 s, y sólo entonces se cierra
+SQLite. Cerrar la base mientras hay peticiones en vuelo, o irse con la cola
+llena, perdería escaneos en cada despliegue.
+
+**El healthcheck es barato.** `/api/health` hace una consulta acotada y nada
+más. Las comprobaciones completas —`integrity_check` y `foreign_key_check`—
+están en `qrforge verificar`, para la validación de un despliegue y el
+mantenimiento: en la sonda se ejecutarían cada treinta segundos recorriendo la
+base entera y ocupando la única conexión de la aplicación, y además la ruta es
+pública.
+
+**Una base ajena no se adopta.** El arranque distingue tres casos: vacía de
+verdad —se crea el esquema—, con las tablas de QR-Forge —se valida—, y con
+tablas de otra cosa —se rechaza sin tocarla—.
 
 ## Lo que cambia a propósito, y por qué
 

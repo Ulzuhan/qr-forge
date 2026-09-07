@@ -87,3 +87,16 @@ jobs:
         env:
           QRFORGE_COMPAT_GO: ./qrforge
         run: npm run test:compatibilidad
+
+      # ─── Y contra la IMAGEN, no sólo contra el binario ────────────────
+      # El binario se compila con los assets buenos del anfitrión, así que no
+      # puede ver lo que se rompe DENTRO de la imagen —un PostCSS que no entra
+      # en su build, un fichero que no se copia—. Correrlo sólo contra el
+      # binario deja esa parte sin acreditar en CI.
+      - run: docker build -f Dockerfile.go-candidate -t qrforge-go:ci .
+
+      - name: El recorrido en navegador, contra la imagen
+        env:
+          QRFORGE_TEST_LAUNCH: bash scripts/lanzar-imagen.sh
+          QRFORGE_TEST_IMAGE: qrforge-go:ci
+        run: npm run test:navegador
