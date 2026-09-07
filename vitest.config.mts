@@ -12,10 +12,9 @@ export default defineConfig({
     // prueba que no toca la base para nada.
     //
     // Falla de forma intermitente —depende de quién llegue antes—, que es la
-    // peor manera de fallar. En un solo proceso comparten el singleton del
-    // módulo y no hay carrera.
-    pool: "forks",
-    poolOptions: { forks: { singleFork: true } },
+    // peor manera de fallar. Sin paralelismo entre ficheros no hay nada que
+    // disputar. Son 35 pruebas puras: tardan lo mismo.
+    fileParallelism: false,
   },
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
 });
