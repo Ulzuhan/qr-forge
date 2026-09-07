@@ -198,7 +198,7 @@ func main() {
 	go func() {
 		defer close(cerrado)
 		<-ctx.Done()
-		apagar(http1, servidor, almacen, pararTareas, &tareas)
+		apagar(http1, servidor, almacen, pararTareas, &tareas, plazosPorDefecto())
 	}()
 
 	log.Printf("qrforge escuchando en %s, base %s, origen impreso %s", http1.Addr, ruta, publica)
@@ -209,6 +209,21 @@ func main() {
 	log.Print("qrforge parado")
 }
 
+// Plazos reparte el presupuesto de parada. Se inyecta para poder probar la
+// secuencia en milisegundos en vez de esperar segundos de verdad.
+type Plazos struct {
+	// CierreHTTP es lo que se le da a `Shutdown` para drenar por las buenas.
+	CierreHTTP time.Duration
+	// Manejadores es lo que se espera DESPUÉS de cerrar a la fuerza, porque
+	// `Close` devuelve con los manejadores todavía dentro.
+	Manejadores time.Duration
+	// Tareas acota la espera de los trabajos de fondo. Sin plazo, uno colgado
+	// deja el apagado esperando hasta que el contenedor mate el proceso.
+	Tareas time.Duration
+	// Drenaje es lo que se le da a vaciar la cola de escaneos.
+	Drenaje time.Duration
+}
+
 // El presupuesto de parada, y de dónde sale ese número.
 //
 // El contenedor no declara `stop_grace_period`, así que Docker manda SIGTERM y
@@ -216,38 +231,51 @@ func main() {
 // con los 15 s de cierre HTTP y 5 s de drenaje que había antes, el proceso
 // moría a mitad del drenaje y se perdía justo lo que se quería salvar.
 //
-// 6 + 2 deja dos segundos de margen. Si alguna vez hace falta más, se sube
-// `stop_grace_period` primero y estos números después, en ese orden.
-const (
-	plazoCierreHTTP = 6 * time.Second
-	plazoDrenaje    = 2 * time.Second
-)
+// 5 + 1 + 1 + 1 son ocho en el peor caso, con dos de margen. Si alguna vez hace
+// falta más, se sube `stop_grace_period` primero y estos números después, en
+// ese orden.
+func plazosPorDefecto() Plazos {
+	return Plazos{
+		CierreHTTP:  5 * time.Second,
+		Manejadores: time.Second,
+		Tareas:      time.Second,
+		Drenaje:     time.Second,
+	}
+}
 
 // apagar es la secuencia de parada, y cada paso depende del anterior:
 //
-//  1. que no queden peticiones en vuelo —o forzarlas, si se acaba el plazo—,
-//  2. que los trabajos de fondo hayan terminado,
+//  1. que no queden peticiones en vuelo —o forzarlas y ESPERAR a que los
+//     manejadores salgan, porque `Close` no los espera—,
+//  2. que los trabajos de fondo hayan terminado, con plazo,
 //  3. escribir lo que quedara en la cola de escaneos,
 //  4. y sólo entonces cerrar la base.
 func apagar(http1 *http.Server, servidor *httpapi.Server, almacen *store.Store,
-	pararTareas context.CancelFunc, tareas *sync.WaitGroup) {
-	cierre, cancelar := context.WithTimeout(context.Background(), plazoCierreHTTP)
+	pararTareas context.CancelFunc, tareas *sync.WaitGroup, plazos Plazos) {
+	cierre, cancelar := context.WithTimeout(context.Background(), plazos.CierreHTTP)
 	defer cancelar()
 	if err := http1.Shutdown(cierre); err != nil {
-		// El plazo se agotó con conexiones todavía abiertas. Seguir a cerrar
-		// SQLite con peticiones vivas es justo lo que este orden evita, así que
-		// se cortan a la fuerza y se dice: una respuesta truncada es mala, y una
-		// consulta contra una base cerrada es peor.
-		log.Printf("el cierre HTTP no terminó en %s (%v): se cierran las conexiones a la fuerza", plazoCierreHTTP, err)
+		// El plazo se agotó con conexiones todavía abiertas. Se cortan a la
+		// fuerza —una respuesta truncada es mala, y una consulta contra una base
+		// cerrada es peor— y después se ESPERA a que los manejadores salgan:
+		// `Close` cierra las conexiones y vuelve, con el manejador todavía
+		// dentro y todavía consultando SQLite.
+		log.Printf("el cierre HTTP no terminó en %s (%v): se cierran las conexiones a la fuerza", plazos.CierreHTTP, err)
 		if err := http1.Close(); err != nil {
 			log.Printf("al forzar el cierre de conexiones: %v", err)
+		}
+		if !servidor.EsperarManejadores(plazos.Manejadores) {
+			// Se dice y se sigue: quedarse aquí sólo garantiza el SIGKILL.
+			log.Printf("quedaron manejadores sin terminar tras %s; se cierra igualmente", plazos.Manejadores)
 		}
 	}
 
 	pararTareas()
-	tareas.Wait()
+	if !esperarCon(tareas, plazos.Tareas) {
+		log.Printf("los trabajos de fondo no terminaron en %s; se cierra igualmente", plazos.Tareas)
+	}
 
-	if d := servidor.DrenarEscaneos(plazoDrenaje); !d.Vacio() {
+	if d := servidor.DrenarEscaneos(plazos.Drenaje); !d.Vacio() {
 		log.Printf("al cerrar: %d escaneos escritos, %d con error de escritura, %d sin escribir por plazo",
 			d.Escritos, d.Fallidos, d.Pendientes)
 	}
@@ -256,8 +284,21 @@ func apagar(http1 *http.Server, servidor *httpapi.Server, almacen *store.Store,
 	}
 }
 
-// limpiar retira sesiones caducadas y escaneos fuera de la retención: al
-// arrancar y cada seis horas, como hacía la instrumentación de Node.
+// esperarCon espera a un WaitGroup con plazo. Devuelve false si venció.
+func esperarCon(wg *sync.WaitGroup, plazo time.Duration) bool {
+	listo := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(listo)
+	}()
+	select {
+	case <-listo:
+		return true
+	case <-time.After(plazo):
+		return false
+	}
+}
+
 func limpiar(ctx context.Context, almacen *store.Store, retencion time.Duration) {
 	hacerlo := func() {
 		c, cancel := context.WithTimeout(ctx, 30*time.Second)

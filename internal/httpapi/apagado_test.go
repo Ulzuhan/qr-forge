@@ -123,3 +123,41 @@ func banco(t *testing.T) (*store.Store, *Server, string, string) {
 }
 
 func puntero[T any](v T) *T { return &v }
+
+// Una escritura del consumidor BLOQUEADA se corta al parar.
+//
+// El plazo de cada escritura colgaba de `context.Background()`, así que una
+// arrancada justo antes de la parada seguía por su cuenta hasta cinco segundos
+// —fuera del presupuesto de apagado— y la espera de trabajos de fondo se
+// quedaba mirándola. Ahora cuelga del contexto del consumidor: cancelarlo la
+// corta.
+func TestUnaEscrituraBloqueadaSeCortaAlParar(t *testing.T) {
+	_, servidor, _, slug := banco(t)
+
+	dentro := make(chan struct{})
+	// Una escritura que sólo termina cuando su contexto muere: es exactamente
+	// lo que hace una consulta esperando por la única conexión de SQLite.
+	servidor.escribirEscaneo = func(ctx context.Context, _ string, _, _ *string) error {
+		close(dentro)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	servidor.escaneos <- escaneo{QrID: slug}
+
+	ctx, parar := context.WithCancel(context.Background())
+	salio := make(chan struct{})
+	go func() { defer close(salio); servidor.AtenderEscaneos(ctx) }()
+
+	<-dentro
+	inicio := time.Now()
+	parar()
+	select {
+	case <-salio:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el consumidor siguió escribiendo después de la cancelación")
+	}
+	// Y sale enseguida, no al vencer su propio plazo de escritura.
+	if tardanza := time.Since(inicio); tardanza > time.Second {
+		t.Fatalf("tardó %v en salir: la escritura no heredó la cancelación", tardanza)
+	}
+}

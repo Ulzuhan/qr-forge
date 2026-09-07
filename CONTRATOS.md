@@ -83,12 +83,26 @@ respuesta truncada es mala y una consulta contra una base cerrada es peor—, se
 paran los trabajos de fondo, se drena la cola de escaneos y sólo entonces se
 cierra SQLite.
 
-El presupuesto es **6 s de cierre HTTP + 2 s de drenaje**, dentro de los 10 s de
-`stop_grace_period` que declara el compose. Ese reparto no es decorativo: con
-los 15 + 5 anteriores el contenedor mataba el proceso a mitad del drenaje, que
-es justo lo que el drenaje evita. El plazo del drenaje es **global**, no por
-escaneo: con uno por escritura, una cola de doscientos tardaría doscientas veces
-más que el presupuesto.
+El presupuesto se reparte en cuatro y **todo lleva plazo**: 5 s de cierre HTTP,
+1 s de espera a los manejadores si hubo que forzar, 1 s de espera a los trabajos
+de fondo y 1 s de drenaje — ocho en el peor caso, dentro de los 10 s de
+`stop_grace_period` que declara el compose. Con los 15 + 5 anteriores el
+contenedor mataba el proceso a mitad del drenaje, que es justo lo que el drenaje
+evita.
+
+Tres detalles que no son de estilo:
+
+- **`Close` no espera a los manejadores.** Cierra las conexiones y vuelve con el
+  manejador todavía dentro, todavía consultando SQLite. Después de forzar se
+  cuenta y se espera a los que quedan.
+- **La escritura de analítica cuelga del contexto del consumidor**, no de
+  `Background`. Con uno desligado, una escritura arrancada justo antes de la
+  parada seguía cinco segundos por su cuenta, fuera del presupuesto.
+- **La espera de los trabajos de fondo tiene plazo.** Sin él, uno que ignore la
+  cancelación deja el apagado esperando hasta el SIGKILL del contenedor.
+
+El plazo del drenaje es **global**, no por escaneo: con uno por escritura, una
+cola de doscientos tardaría doscientas veces más que el presupuesto.
 
 Y el resultado se cuenta de verdad: escritos, fallidos y pendientes son tres
 números distintos. Un error de escritura descartado con `_ =` hacía que el

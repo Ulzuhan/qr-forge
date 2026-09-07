@@ -109,13 +109,18 @@ func (s *Server) AtenderEscaneos(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case e := <-s.escaneos:
-			registrar, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := s.almacen.RegistrarEscaneo(registrar, e.QrID, e.UserAgent, e.Pais); err != nil {
+			// El plazo de la escritura CUELGA del contexto del consumidor, no de
+			// Background. Con uno desligado, una escritura arrancada justo antes
+			// de la parada seguía hasta cinco segundos por su cuenta, fuera del
+			// presupuesto de apagado y con `tareas.Wait()` esperándola.
+			registrar, cancel := context.WithTimeout(ctx, s.plazoEscritura)
+			err := s.escribirEscaneo(registrar, e.QrID, e.UserAgent, e.Pais)
+			cancel()
+			if err != nil {
 				// La analítica es best-effort, pero un fallo silencioso no deja
 				// forma de saber que se están perdiendo escaneos.
 				log.Printf("no se pudo registrar un escaneo: %v", err)
 			}
-			cancel()
 		}
 	}
 }
@@ -151,7 +156,7 @@ func (s *Server) DrenarEscaneos(plazo time.Duration) Drenaje {
 	for {
 		select {
 		case e := <-s.escaneos:
-			if err := s.almacen.RegistrarEscaneo(ctx, e.QrID, e.UserAgent, e.Pais); err != nil {
+			if err := s.escribirEscaneo(ctx, e.QrID, e.UserAgent, e.Pais); err != nil {
 				d.Fallidos++
 				// Si se acabó el plazo, lo que queda ya no se va a escribir: se
 				// cuenta y se sale, en vez de intentarlo doscientas veces más.

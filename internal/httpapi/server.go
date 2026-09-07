@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Ulzuhan/qr-forge/internal/auth"
@@ -35,6 +36,19 @@ type Server struct {
 	// Cola acotada de escaneos: la analítica no puede tumbar un redirect ni
 	// abrir una goroutine por petición.
 	escaneos chan escaneo
+	// escribirEscaneo es sustituible dentro del paquete para poder bloquear una
+	// escritura de forma determinista en las pruebas. Fuera de ellas es siempre
+	// el almacén.
+	escribirEscaneo func(context.Context, string, *string, *string) error
+	// plazoEscritura acota UNA escritura de analítica. Se combina con el
+	// contexto de quien llama, así que una parada lo corta antes.
+	plazoEscritura time.Duration
+	// enVuelo cuenta los manejadores que están corriendo AHORA.
+	//
+	// `Shutdown` los espera, pero `Close` no: cierra las conexiones y vuelve, con
+	// los manejadores todavía dentro. Sin llevar esta cuenta, forzar el cierre y
+	// pasar a cerrar SQLite deja consultas contra una base cerrada.
+	enVuelo sync.WaitGroup
 }
 
 func New(almacen *store.Store, oidc *auth.Config, publicURL string, ttl time.Duration) (*Server, error) {
@@ -45,7 +59,8 @@ func New(almacen *store.Store, oidc *auth.Config, publicURL string, ttl time.Dur
 	return &Server{almacen: almacen, oidc: oidc, discovery: auth.NuevoDiscovery(),
 		verif: auth.NuevoVerificador(), recursos: recursos, publicURL: publicURL,
 		limitador: nuevoLimitador(), ttlSesion: ttl, ahora: time.Now,
-		escaneos: make(chan escaneo, 256)}, nil
+		escaneos: make(chan escaneo, 256), escribirEscaneo: almacen.RegistrarEscaneo,
+		plazoEscritura: 5 * time.Second}, nil
 }
 
 // AhoraCon inyecta el reloj en el servidor y en su limitador. Sólo pruebas.
@@ -104,7 +119,33 @@ func (s *Server) Handler() http.Handler {
 			mux.ServeHTTP(w, r)
 		})
 	}
-	return conCabeceras(raiz)
+	return conCabeceras(s.Contando(raiz))
+}
+
+// Contando lleva la cuenta de los manejadores vivos, para poder esperarlos al
+// parar aunque haya habido que cerrar las conexiones a la fuerza.
+func (s *Server) Contando(siguiente http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.enVuelo.Add(1)
+		defer s.enVuelo.Done()
+		siguiente.ServeHTTP(w, r)
+	})
+}
+
+// EsperarManejadores espera a que terminen los manejadores vivos, con plazo.
+// Devuelve false si el plazo se agotó con alguno todavía dentro.
+func (s *Server) EsperarManejadores(plazo time.Duration) bool {
+	listo := make(chan struct{})
+	go func() {
+		s.enVuelo.Wait()
+		close(listo)
+	}()
+	select {
+	case <-listo:
+		return true
+	case <-time.After(plazo):
+		return false
+	}
 }
 
 func conCabeceras(siguiente http.Handler) http.Handler {
