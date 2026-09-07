@@ -23,6 +23,8 @@ export BASE="http://127.0.0.1:$PORT"
 export PUERTO_IDP="${PUERTO_IDP:-9997}"
 export CLIENT_ID="qrforge-pruebas"
 WORK="$(mktemp -d)"
+# Igual que run-suites.sh: la MISMA suite contra las dos implementaciones.
+LANZAR="${QRFORGE_TEST_LAUNCH:-node .next/standalone/server.js}"
 DB="$WORK/backchannel.db"
 LOG="$WORK/server.log"
 
@@ -54,7 +56,7 @@ QRFORGE_DB_PATH="$DB" QRFORGE_PUBLIC_URL="$BASE" \
   QRFORGE_OIDC_ISSUER="$EMISOR/" \
   QRFORGE_OIDC_REDIRECT_URI="$BASE/api/auth/callback" \
   HOSTNAME=127.0.0.1 PORT="$PORT" \
-  node .next/standalone/server.js >"$LOG" 2>&1 &
+  $LANZAR >"$LOG" 2>&1 &
 server_pid=$!
 
 for _ in $(seq 1 90); do

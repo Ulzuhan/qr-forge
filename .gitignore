@@ -47,3 +47,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Binario del backend Go: se compila, no se guarda
+/qrforge
+# Lo construye vite; no se guarda
+internal/web/dist/*
+!internal/web/dist/.gitkeep

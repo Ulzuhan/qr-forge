@@ -64,6 +64,26 @@ URI*. Sessions also expire on their own after `QRFORGE_SESSION_TTL_HOURS` (12 by
 default, 24 maximum), which is the bound that holds even when no notification
 arrives: the provider only notifies clients whose access token is still alive.
 
+## El backend es Go
+
+Desde **0.6.0** el servicio es **backend en Go e interfaz React sobre Vite**,
+embebida en el binario. La funcionalidad es la misma: las mismas URL —incluida
+la que va impresa en los códigos—, la misma base SQLite, los mismos usuarios y
+sesiones, y la integración con LinkUp igual.
+
+Node se conserva para **compilar y probar**: compila la interfaz con vite y las
+suites corren contra las dos implementaciones. En el runtime no queda.
+
+```bash
+npm run build:web                       # la interfaz
+go build -o ./qrforge ./cmd/qrforge     # el binario, con la interfaz dentro
+QRFORGE_PUBLIC_URL=http://127.0.0.1:3459 ./qrforge
+```
+
+Lo que está congelado y lo que cambia a propósito está en
+[CONTRATOS.md](CONTRATOS.md). El legado de Node sigue en el árbol mientras dure
+la observación, para poder validar el retorno.
+
 ## Development
 
 ```bash

@@ -127,4 +127,17 @@ for (let i = 0; i < 25; i++) {
 }
 check("la cuota por cuenta corta el crecimiento", cuota?.status, 507);
 
+console.log("\nLo que lee un rastreador");
+// Cuerpo exacto y no «contiene»: lo lee alguien de fuera, y el día del cambio
+// de implementación no puede variar lo que ve. `/r/` es la exclusión que más
+// importa: son las redirecciones impresas, y cada una indexada es un escaneo
+// atribuido a un rastreador en vez de a una persona. El port llegó a perderla
+// junto con `/new`.
+const robots = await fetch(`${process.env.BASE}/robots.txt`);
+check("robots.txt responde", robots.status, 200);
+const cuerpoRobots = await robots.text();
+check("  con las tres exclusiones y en el mismo orden",
+  cuerpoRobots.startsWith("User-Agent: *\nAllow: /\nDisallow: /r/\nDisallow: /api/\nDisallow: /new\n\n"), true);
+check("  y anuncia el sitemap", /\nSitemap: \S+\/sitemap\.xml\n$/.test(cuerpoRobots), true);
+
 resumen();
