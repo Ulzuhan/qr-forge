@@ -1,6 +1,6 @@
 /* GENERADO por kaicorplabs/tools/sync-theme.sh — NO EDITAR AQUÍ.
    El original está en el repo kaicorplabs (theme/). */
-import Link from "../shim";
+import Link from "../navigation";
 
 /**
  * Cabecera común de KaiCorp Labs.

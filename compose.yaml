@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     init: true
     # Declarado, no heredado: el binario reparte su parada dentro de este plazo
-    # (6 s de cierre HTTP + 2 s de drenaje de escaneos, con margen). Subirlo aquí
+    # (5 s HTTP + 1 s manejadores + 1 s tareas + 1 s drenaje). Subirlo aquí
     # antes que allí; bajarlo sin tocar el binario dejaría el drenaje a medias.
     stop_grace_period: 10s
     ports:

@@ -8,12 +8,8 @@ import react from "@vitejs/plugin-react";
 // construyen los recursos, con nombre por contenido para poder cachearlos
 // eternamente. El manifiesto le dice a Go cómo se llaman.
 export default defineConfig({
-  // El pie común está GENERADO desde el repo del tema y lo comparten los seis
-  // servicios: no se le cambia la lógica aquí. Lee
-  // `process.env.KAICORP_FOOTER_LINKS`, que en Next es un componente de
-  // servidor y aquí no existe — vite sustituye `process.env` por `{}` y la
-  // bandera saldría SIEMPRE apagada, perdiendo los enlaces entre servicios sin
-  // que nada fallara. Se apunta a lo que deja el servidor en el nodo raíz.
+  // Adapter for the generated KaiCorp footer: expose only the public flag
+  // that Go writes to the root element, never server environment variables.
   define: {
     "process.env.KAICORP_FOOTER_LINKS":
       "document.getElementById('app')?.dataset.footerLinks",

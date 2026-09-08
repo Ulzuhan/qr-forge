@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Link from "../shim";
+import Link from "../navigation";
 import { QrPreview } from "../components/QrPreview";
 import { CopyButton } from "../components/CopyButton";
 import { StatusToggle } from "../components/StatusToggle";

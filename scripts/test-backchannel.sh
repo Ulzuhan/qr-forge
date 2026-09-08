@@ -3,14 +3,8 @@
 # Levanta QR-Forge apuntando a un proveedor de mentira y corre
 # `test-backchannel.mjs` contra él.
 #
-# Necesita su propio arrancador por lo mismo que `test-identity.sh`: las demás
-# suites corren con el proveedor APAGADO —run-suites.sh vacía esas variables a
-# propósito, para que las cuentas locales que crean puedan existir—, y aquí el
-# proveedor es justamente lo que se prueba.
-#
-# A diferencia de test-identity.sh, este proveedor sí existe: lo levanta el
-# propio `.mjs` en el puerto 9998, con su JWKS, y firma de verdad. Por eso el
-# emisor apunta ahí y no a un dominio inventado.
+# El proveedor sintético de test-backchannel.mjs publica JWKS y firma avisos.
+# No se contacta con el proveedor productivo.
 #
 #   npm run test:backchannel     # hace falta un build antes (npm run build)
 set -uo pipefail
@@ -23,8 +17,8 @@ export BASE="http://127.0.0.1:$PORT"
 export PUERTO_IDP="${PUERTO_IDP:-9997}"
 export CLIENT_ID="qrforge-pruebas"
 WORK="$(mktemp -d)"
-# Igual que run-suites.sh: la MISMA suite contra las dos implementaciones.
-LANZAR="${QRFORGE_TEST_LAUNCH:-node .next/standalone/server.js}"
+# Go por omisión, con override para una imagen ya construida.
+LANZAR="${QRFORGE_TEST_LAUNCH:-./qrforge}"
 DB="$WORK/backchannel.db"
 LOG="$WORK/server.log"
 
@@ -34,7 +28,7 @@ server_pid=""
 
 stop() {
   [ -n "$server_pid" ] || return 0
-  # El grupo entero: el standalone deja un trabajador que se queda el puerto.
+  # El grupo entero: el lanzador deja un trabajador que se queda el puerto.
   kill -- -"$server_pid" 2>/dev/null || kill "$server_pid" 2>/dev/null
   wait "$server_pid" 2>/dev/null
   server_pid=""
@@ -46,8 +40,7 @@ cleanup() {
 }
 trap 'cleanup; exit 130' INT TERM
 
-# La base, desde el esquema: el servidor no migra al arrancar y sin esto la
-# primera consulta muere con "no such table: users".
+# La fixture siembra explícitamente el esquema compatible con producción.
 sqlite3 "$DB" < scripts/esquema.sql
 
 QRFORGE_DB_PATH="$DB" QRFORGE_PUBLIC_URL="$BASE" \
@@ -55,7 +48,7 @@ QRFORGE_DB_PATH="$DB" QRFORGE_PUBLIC_URL="$BASE" \
   QRFORGE_OIDC_CLIENT_SECRET=secreto-de-pruebas \
   QRFORGE_OIDC_ISSUER="$EMISOR/" \
   QRFORGE_OIDC_REDIRECT_URI="$BASE/api/auth/callback" \
-  HOSTNAME=127.0.0.1 PORT="$PORT" \
+  QRFORGE_INSECURE_COOKIES=1 HOSTNAME=127.0.0.1 PORT="$PORT" \
   $LANZAR >"$LOG" 2>&1 &
 server_pid=$!
 

@@ -1,11 +1,4 @@
-# La imagen del servicio, con el backend en Go.
-#
-# La de Node vive en `Dockerfile.node` y ya no se publica. Se conserva mientras
-# dure la observación, porque es con lo que se valida el retorno a 0.5.0.
-#
-# El nombre importa: durante la migración esto fue `Dockerfile.go-candidate`, y
-# nunca `Dockerfile.go` — esa extensión hace que el herramental de Go intente
-# compilar el fichero y `go build ./...` falla con «illegal character U+0023».
+# React assets are built separately; the runtime contains Go and CA certificates.
 
 FROM node:22-bookworm-slim AS assets
 WORKDIR /app

@@ -1,9 +1,9 @@
 
-import { useRouter } from "../shim";
+import { useNavigation } from "../navigation";
 import { useState } from "react";
 
 export function StatusToggle({ id, isActive }: { id: string; isActive: boolean }) {
-  const router = useRouter();
+  const router = useNavigation();
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState(isActive);
 

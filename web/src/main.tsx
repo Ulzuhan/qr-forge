@@ -14,7 +14,7 @@ import { createRoot } from "react-dom/client";
 // sólo duplicaría reglas.
 import "./globals.css";
 
-import Link from "./shim";
+import Link from "./navigation";
 import { KaiCorpHeader } from "./components/kaicorp-header";
 import { KaiCorpFooter } from "./components/kaicorp-footer";
 import { KaiCorpAccountMenu } from "./components/kaicorp-account-menu";
@@ -98,7 +98,6 @@ function App() {
         ) : (
           <Link
             href="/api/auth/login"
-            prefetch={false}
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Sign in

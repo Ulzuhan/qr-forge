@@ -1,5 +1,5 @@
 
-import { useRouter } from "../shim";
+import { useNavigation } from "../navigation";
 import { useState } from "react";
 
 type QrData = {
@@ -16,7 +16,7 @@ type QrData = {
 };
 
 export function EditQrForm({ qr }: { qr: QrData }) {
-  const router = useRouter();
+  const router = useNavigation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);

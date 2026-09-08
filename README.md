@@ -2,6 +2,11 @@
 
 Dynamic and static QR codes, self-hosted. The printed QR never changes: you change where it points.
 
+**React in the browser, Go on the server.** Since 0.6.0, a single Go process
+serves the API, authentication, redirects and embedded Vite assets. QR previews
+and PNG/SVG generation stay in the browser. The production image has no Node,
+npm or browser runtime; Node is needed only to build the frontend and run tests.
+
 [![CI](https://github.com/Ulzuhan/qr-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/Ulzuhan/qr-forge/actions/workflows/ci.yml)
 [![Container image](https://github.com/Ulzuhan/qr-forge/actions/workflows/docker.yml/badge.svg)](https://github.com/Ulzuhan/qr-forge/pkgs/container/qr-forge)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -13,11 +18,20 @@ Dynamic and static QR codes, self-hosted. The printed QR never changes: you chan
 
 ## Access
 
-Accounts live in an **OIDC provider you point it at** — any standard one works: Authentik (what the original deployment runs), Keycloak, Zitadel, Auth0 — not here: signing in is an OIDC flow (`lib/oidc.ts`), and who gets in is decided by the provider. Without the OIDC variables set, nobody can sign in and nothing can be created — deliberate, not a misconfiguration. This application only keeps a mirror of the identity (`users.oidc_sub`) so it can tell who owns each QR, plus its own session — a cookie whose hash lives in the database, revocable. See `lib/auth.ts`.
+Accounts live in the configured **OIDC provider**, not in a local password
+database. Authentik is used by the KaiCorp deployment. The active integration
+is in `internal/auth/` and `internal/httpapi/identidad.go`. Without OIDC
+configuration nobody can sign in or create codes. SQLite keeps an identity
+mirror (`users.oidc_sub`) and revocable sessions identified by a SHA-256 hash of
+the cookie token; the raw token is not stored in the database.
 
 Each account sees and manages **only its own QR codes**.
 
-The only public route is **`/r/<slug>`**: it is what printed QR codes encode, and it has to work for anyone, always, without a session. Everything else requires a session and also checks ownership; requesting someone else's QR returns 404, not 403, so the response does not confirm that the slug exists.
+**`/r/<slug>` is public**: printed dynamic codes must work without a session.
+The landing page, static assets, robots/sitemap, healthcheck and OIDC entrypoints
+are also public. The management pages and QR APIs require a session and check
+ownership; requesting another account's QR returns 404 rather than confirming
+that it exists.
 
 ## Prefilling from another tool
 
@@ -44,83 +58,119 @@ the intent survives the trip through the identity provider.
 
 | Variable | Purpose |
 |---|---|
-| `QRFORGE_PUBLIC_URL` | Public URL the app is served from (e.g. `https://qr.kaicorplabs.com`). **This is what gets printed into the QR codes**: pin it in production, or a QR generated from localhost or from inside the VPN will carry that private URL onto paper. If unset, it is derived from the request. |
+| `QRFORGE_PUBLIC_URL` | **Required by Go at startup.** Public HTTPS origin, without a path, query or fragment; HTTP is accepted only on loopback for development. This origin is printed into dynamic codes and is never inferred from the request. |
 | `QRFORGE_OIDC_CLIENT_ID` / `_SECRET` | OIDC client credentials. Without them nobody can sign in. |
 | `QRFORGE_OIDC_REDIRECT_URI` | Must match one of the URIs registered in the provider. |
 | `QRFORGE_OIDC_ISSUER` | The provider's issuer URL. Every endpoint (authorize, token, userinfo, end-session, JWKS) is read from its `/.well-known/openid-configuration`, so no provider-specific paths are baked in |
-| `QRFORGE_OIDC_INTERNAL_BASE` | The provider as this server sees it — redeeming the authorization code never leaves the internal network. Falls back to `PUBLIC_BASE`. |
+| `QRFORGE_OIDC_INTERNAL_BASE` | The provider as this server sees it — redeeming the authorization code never leaves the internal network. Defaults to the issuer origin. |
 | `QRFORGE_ACCOUNT_URL` | The provider's own account page — email, password, second factor, sessions. None of that belongs to this app, and without it the account menu simply does not link anywhere. Authentik serves it at `/if/user/`. |
-| `QRFORGE_DB_PATH` | SQLite path (default `./qrforge.db`). |
+| `QRFORGE_DB_PATH` | SQLite path; the Go default is `/data/qrforge.db`. Set a writable development path when running outside Docker. |
+| `QRFORGE_INSECURE_COOKIES` | Set to `1` only for local HTTP development. Cookies are Secure by default; do not disable this in production. |
 | `QRFORGE_PUBLIC_HOST` | Public hostname the origin check compares against. Unset, the incoming `Host` is used, which is right behind a tunnel that preserves it — verified. Only needed behind a proxy that rewrites `Host` with an internal name. |
 | `QRFORGE_SESSION_TTL_HOURS` | Session lifetime, default 12 h and clamped to 1–24 h. |
 | `QRFORGE_MAX_QRS_PER_USER` | Per-account quota; default 1000. |
 | `QRFORGE_MAX_CREATES_PER_HOUR` | Creation rate per identity and IP; default 120. |
 | `QRFORGE_SCAN_RETENTION_DAYS` | Scan retention; default 365 days. |
 
-**Losing access takes effect, and quickly.** `POST /api/auth/backchannel-logout`
+**A valid back-channel notification revokes existing sessions.** `POST /api/auth/backchannel-logout`
 implements OIDC Back-Channel Logout, so the provider can end somebody's sessions
 here the moment it ends its own — point it at that URL in the client's *Logout
 URI*. Sessions also expire on their own after `QRFORGE_SESSION_TTL_HOURS` (12 by
 default, 24 maximum), which is the bound that holds even when no notification
 arrives: the provider only notifies clients whose access token is still alive.
 
-## El backend es Go
+## Build and run
 
-Desde **0.6.0** el servicio es **backend en Go e interfaz React sobre Vite**,
-embebida en el binario. La funcionalidad es la misma: las mismas URL —incluida
-la que va impresa en los códigos—, la misma base SQLite, los mismos usuarios y
-sesiones, y la integración con LinkUp igual.
-
-Node se conserva para **compilar y probar**: compila la interfaz con vite y las
-suites corren contra las dos implementaciones. En el runtime no queda.
+Prerequisites: Node 22/npm (build and tests only), the Go toolchain in
+[go.mod](go.mod), and a configured OIDC provider for authenticated use.
 
 ```bash
-npm run build:web                       # la interfaz
-go build -o ./qrforge ./cmd/qrforge     # el binario, con la interfaz dentro
-QRFORGE_PUBLIC_URL=http://127.0.0.1:3459 ./qrforge
+npm ci
+npm run dev
 ```
 
-Lo que está congelado y lo que cambia a propósito está en
-[CONTRATOS.md](CONTRATOS.md). El legado de Node sigue en el árbol mientras dure
-la observación, para poder validar el retorno.
+Open **http://127.0.0.1:13459**. This compiles React assets, embeds them in Go,
+and runs the Go server using an isolated `.local/qrforge.db`. Restart the command
+after source changes; it does not run a second server or offer hot reload.
+Without OIDC settings the public page works, but sign-in is unavailable.
+Export settings before starting; the binary does not automatically load `.env`.
+Insecure cookies are enabled only by this local HTTP development launcher.
 
-## Development
+To build a deployable executable:
 
 ```bash
-npm run dev          # http://localhost:3000
-QRFORGE_DB_PATH=/tmp/qrforge-dev.db QRFORGE_ALLOW_DB_RESET=YES npm run db:reset
-npm run build && npm start
+npm run build
+# Set QRFORGE_PUBLIC_URL, QRFORGE_DB_PATH and OIDC settings for your environment.
+npm start
 ```
 
-Production recipes for Docker Compose and a hardened systemd service are documented in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+After building, `./qrforge` runs independently of Node and the source tree.
+For Docker, copy [.env.example](.env.example) to `.env`, configure your public
+origin/OIDC, then use `docker compose up -d --build`. See
+[DEPLOYMENT.md](DEPLOYMENT.md) for HTTPS, persistent storage and rollback.
 
-## Tests
+## Architecture
+
+| Location | Responsibility |
+|---|---|
+| `cmd/qrforge` | Startup, health/integrity commands and bounded shutdown |
+| `internal/httpapi` | HTTP API, authorization, HTML, redirects and bounded scan queue |
+| `internal/auth` | OIDC discovery, PKCE and back-channel logout |
+| `internal/store` | Explicit SQL, transactions, sessions and retention |
+| `web/src` | React interface, QR rendering and PNG/SVG downloads |
+| `internal/web` | Embedded Vite assets; generated output is not versioned |
+| `scripts` | Isolated HTTP, browser and historical compatibility tests |
+
+Go resolves sessions and serves each page; React handles interaction in the
+browser. Client navigation uses normal links, so direct URLs and reloads follow
+the same server authorization path. The shared KaiCorp theme keeps its design;
+only explicitly public server data reaches the page.
+
+## Verification
 
 ```bash
-npm test           # unit tests, then the HTTP suite
-npm run test:unit  # just the pure functions
-npm run test:http  # just the suite, needs a build first
+npm run lint
+npm run typecheck
+npm test
+npx playwright install chromium
+npm run test:navegador
+npm run test:compatibilidad
 ```
 
-The HTTP suite starts its own server against a **fresh database built from the
-schema** — never `qrforge.db`, which holds real accounts.
+HTTP tests require Bash, curl, sqlite3 and Linux `ss`; browser tests also use
+OpenSSL. Compatibility tests require Docker and pull the pinned historical
+0.5.0 image. All fixtures use temporary synthetic databases, never production.
 
-What it is really guarding: a dynamic QR is not a page, it is a piece of paper
-**already printed** pointing at a URL that can be changed afterwards. Anybody who
-manages to edit somebody else's destination redirects everyone scanning a poster
-that has been on the wall for weeks — and whoever printed it cannot fix it. So the
-first thing the suite checks is that another account gets **404** reading, editing,
-deleting or asking for the stats of a code that is not theirs (404 rather than 403:
-there is no reason to confirm to somebody probing that the code exists), and that the
-destination survives those attempts untouched.
+`npm test` builds the app and runs frontend unit tests, Go tests with the race
+detector, HTTP contracts and signed synthetic back-channel notifications. CI also
+runs `go vet`, tests the browser against the final image, and checks rollback
+on the same synthetic database, with only one application writer at a time.
 
-It also covers what a destination may be. `javascript:`, `data:`, `file:`, `ftp:` and
-protocol-relative URLs are refused, because that destination ends up in a `Location`
-header that the scanner's browser follows. A private address like
-`http://192.168.1.50` **is** accepted, on purpose: the redirect resolves in the
-scanner's browser, not on this server, so it reaches nothing here — and a QR for the
-NAS at home is a legitimate use of this tool.
+The test commands select Go by default. `QRFORGE_TEST_LAUNCH` and
+`QRFORGE_TEST_BUILD_STAMP` can target another built artifact. The historical
+Node image is solely a rollback fixture: there is no Next.js server, Drizzle
+migration tool or alternative Node Dockerfile in the active source tree.
+See [CONTRATOS.md](CONTRATOS.md) for behavior and regression coverage.
 
 ## Database
 
-SQLite with Drizzle. `users` (mirror of the Authentik identity) · `sessions` · `qr_codes` (with `user_id`) · `qr_scans`. Foreign keys cascade, but SQLite only enforces them when the connection enables `PRAGMA foreign_keys = ON` — the app does (`db/index.ts`); the `sqlite3` CLI does **not**, so a manual `DELETE FROM users` leaves orphans behind.
+SQLite through Go's `database/sql` and `modernc.org/sqlite`, with explicit SQL
+in `internal/store/`. No Node or Drizzle is required at runtime. The existing
+schema is preserved: `users`, `sessions`, `qr_codes` and `qr_scans`; timestamps
+on disk remain Unix seconds.
+
+The application enables WAL and foreign keys. A separate `sqlite3` session must
+enable foreign keys itself before maintenance; otherwise cascading deletes do
+not apply. Use `qrforge health` for the lightweight healthcheck and
+`qrforge verificar` for the expensive integrity/foreign-key checks during
+planned maintenance. Never run two application writers against the same data.
+
+## Project history
+
+Version 0.6.0 replaced the Node backend with Go without changing printed URLs or
+the SQLite format. The previous implementation remains in Git history and its
+pinned release image; it is not needed to build or run this tree. Migration and
+cleanup decisions are recorded in [docs/MIGRATION.md](docs/MIGRATION.md).
+
+MIT licensed. Contributions should preserve the documented HTTP/data contracts;
+run the checks above before opening a pull request.

@@ -1,5 +1,5 @@
 
-import { useRouter } from "../shim";
+import { useNavigation } from "../navigation";
 import { useState } from "react";
 
 type Props = {
@@ -8,7 +8,7 @@ type Props = {
 };
 
 export function DeleteButton({ id, title }: Props) {
-  const router = useRouter();
+  const router = useNavigation();
   const [busy, setBusy] = useState(false);
 
   const handleDelete = async () => {

@@ -1,6 +1,6 @@
 /* GENERADO por kaicorplabs/tools/sync-theme.sh — NO EDITAR AQUÍ.
    El original está en el repo kaicorplabs (theme/). */
-import Link from "../shim";
+import Link from "../navigation";
 
 /**
  * Pie común de KaiCorp Labs.
@@ -9,15 +9,16 @@ import Link from "../shim";
  * No editar aquí: editar el original y sincronizar.
  *
  * Usa los tokens `--kc-*` y no los de la aplicación, a propósito: el cromado
- * (cabecera y pie) es lo que se reconoce igual en los cinco servicios,
+ * (cabecera y pie) es lo que se reconoce igual en los seis servicios,
  * mientras cada app conserva su propia paleta puertas adentro.
  *
  * Lleva enlaces al resto porque quien usa dos de estas aplicaciones no debería
  * tener que teclear la URL de la otra — pero SOLO si quien opera la instancia
  * lo pide con KAICORP_FOOTER_LINKS: en un despliegue ajeno, esos enlaces son
  * publicidad de servicios de otro. Sin la variable queda la atribución sola.
- * Es un componente de servidor y las páginas son dinámicas (CSP con nonce),
- * así que la variable se lee en tiempo de ejecución, no de build.
+ * En esta adaptación React, Go decide la bandera al servir el documento
+ * (CSP con nonce). El adaptador de Vite lee únicamente data-footer-links;
+ * no se incluye el entorno del servidor en el bundle.
  */
 const SERVICES = [
   { name: "TabUp", url: "https://tabup.kaicorplabs.com", slug: "tabup" },

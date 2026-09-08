@@ -1,5 +1,6 @@
+import { buildWifiPayload, buildEmailPayload } from "../lib/payload";
 
-import { useRouter } from "../shim";
+import { useNavigation } from "../navigation";
 import { useState } from "react";
 
 type Tab = "dynamic" | "static";
@@ -7,7 +8,7 @@ type StaticKind = "url" | "wifi" | "email" | "text";
 
 /**
  * Lo que otra herramienta ha decidido por quien llega. Validado en el servidor
- * (lib/intent.ts) antes de llegar aquí; este componente solo lo pinta.
+ * (internal/httpapi/paginas.go) antes de llegar aquí; este componente solo lo pinta.
  */
 export type Initial = {
   url: string;
@@ -16,7 +17,7 @@ export type Initial = {
 };
 
 export function NewQrForm({ initial }: { initial?: Initial | null }) {
-  const router = useRouter();
+  const router = useNavigation();
   // Con intención se abre en estático: quien viene de LinkUp ya tiene un enlace
   // que redirige, y hacerlo dinámico otra vez añadiría un salto y un segundo
   // contador para la misma cosa. Puede cambiarlo, y la nota le dice qué gana.
@@ -68,18 +69,14 @@ export function NewQrForm({ initial }: { initial?: Initial | null }) {
       } else {
         body.staticKind = staticKind;
         if (staticKind === "wifi") {
-          body.staticPayload = buildWifiOnClient(
+          body.staticPayload = buildWifiPayload(
             wifiSsid,
             wifiPassword,
             wifiEncryption,
             wifiHidden
           );
         } else if (staticKind === "email") {
-          const params = new URLSearchParams();
-          if (emailSubject) params.set("subject", emailSubject);
-          if (emailBody) params.set("body", emailBody);
-          const qs = params.toString();
-          body.staticPayload = `mailto:${emailTo}${qs ? "?" + qs : ""}`;
+          body.staticPayload = buildEmailPayload(emailTo, emailSubject, emailBody);
         } else if (staticKind === "text") {
           body.staticPayload = textContent;
         } else if (staticKind === "url") {
@@ -398,24 +395,6 @@ const STATIC_ICONS: Record<StaticKind, string> = {
   text: "📝",
 };
 
-function buildWifiOnClient(
-  ssid: string,
-  password: string,
-  encryption: "WPA" | "WEP" | "nopass",
-  hidden: boolean
-): string {
-  const esc = (s: string) =>
-    s.replace(/\\/g, "\\\\")
-      .replace(/;/g, "\\;")
-      .replace(/,/g, "\\,")
-      .replace(/"/g, '\\"')
-      .replace(/:/g, "\\:");
-  let p = `WIFI:T:${encryption};S:${esc(ssid)};`;
-  if (password && encryption !== "nopass") p += `P:${esc(password)};`;
-  if (hidden) p += "H:true;";
-  p += ";";
-  return p;
-}
 
 function Field({
   label,

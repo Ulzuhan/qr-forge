@@ -19,7 +19,7 @@ cd "$(dirname "$0")/.."
 PUERTO="${PORT:-3991}"
 export BASE="http://127.0.0.1:$PUERTO"
 IMAGEN_NODE="${QRFORGE_COMPAT_NODE:-ghcr.io/ulzuhan/qr-forge:0.5.0@sha256:cbe1f7a131443c3113b39502c27159b41969f785ab552e8de234d17adb8b53d5}"
-GO_LANZAR="${QRFORGE_COMPAT_GO:-}"
+GO_LANZAR="${QRFORGE_COMPAT_GO:-./qrforge}"
 [ -n "$GO_LANZAR" ] || { echo "hace falta QRFORGE_COMPAT_GO con el binario Go"; exit 2; }
 
 WORK="$(mktemp -d)"
@@ -42,7 +42,7 @@ parar() {
   done
   echo "aviso: el puerto $PUERTO sigue ocupado"; return 1
 }
-limpiar() { parar; docker rm -f "qrforge-compat" >/dev/null 2>&1; rm -rf "$WORK"; }
+limpiar() { parar; rm -rf "$WORK"; }
 trap 'limpiar; exit 130' INT TERM
 
 arrancar() { # $1 = etiqueta, $2 = orden

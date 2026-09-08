@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Link from "../shim";
+import Link from "../navigation";
 import QRCode from "qrcode";
 
 /**
@@ -8,11 +8,7 @@ import QRCode from "qrcode";
  * El QR de la demo es de verdad, generado aquí mismo y escaneable: apunta a
  * esta misma página. Enseñar el producto funcionando dice más que describirlo.
  *
- * Era un componente `async`, que en Next significa «de servidor». En el
- * navegador un componente async devuelve una promesa y React la trata como una
- * suspensión: la página entera se quedaba en blanco con el error 482 y sin
- * decir de dónde venía. El QR se genera ahora en un efecto, que es lo mismo en
- * un instante y no bloquea el primer pintado.
+ * La demo se genera en un efecto sin bloquear el primer pintado.
  */
 export function Landing({ baseUrl }: { baseUrl: string }) {
   const [demoQr, setDemoQr] = useState("");
@@ -60,7 +56,6 @@ export function Landing({ baseUrl }: { baseUrl: string }) {
               </Link>
               <Link
                 href="/api/auth/login"
-                prefetch={false}
                 className="inline-flex h-12 items-center justify-center rounded-md border border-border px-7 text-base font-medium transition-colors hover:bg-muted"
               >
                 Sign in

@@ -1,102 +1,117 @@
-# Despliegue y operación
+# Deployment and operations
 
-QR Forge está expuesto públicamente por `/r/<slug>` y conserva datos duraderos en SQLite. Debe ejecutarse como **una sola instancia** detrás de un proxy HTTPS: SQLite, el rate limit y las tareas de retención son locales al proceso.
+QR-Forge runs as **one Go process** with embedded React assets and a writable
+SQLite store. Do not run two application instances against the same database:
+rate limits, scan queues and retention jobs are process-local.
 
 ## Docker Compose
 
-1. Copia `.env.example` a `.env`, configura OIDC y fija `QRFORGE_PUBLIC_URL` al origen HTTPS definitivo. Ese origen queda impreso físicamente en cada QR dinámico.
-2. Ejecuta `docker compose up -d --build`.
-3. Publica únicamente el proxy TLS; Compose enlaza la aplicación a `127.0.0.1:3459`.
+1. Copy `.env.example` to `.env`; set the permanent HTTPS public origin and OIDC settings.
+2. Keep `QRFORGE_DB_PATH=/data/qrforge.db` inside the container: `/data` is the writable volume.
+3. Run `docker compose up -d --build`. The example binds only `127.0.0.1:3459`.
+4. Expose the service through an HTTPS proxy. Never change the public origin casually: it is printed in existing QR codes.
 
-El contenedor corre como UID 10001, sin capacidades, con raíz de solo lectura y un volumen escribible exclusivamente para SQLite. Si el fichero no existe, `init-db.mjs` crea el esquema; nunca reinicializa una base existente.
+The image runs as UID 10001, with a read-only root filesystem, no capabilities,
+a private tmpfs and `no-new-privileges`. Go initializes a genuinely empty
+SQLite database; an existing database is validated, never reset. Foreign
+application databases are rejected. Node is used only in the asset build stage.
 
-## Proxy inverso
+## Reverse proxy
 
-El proxy debe reemplazar —no anexar desde el cliente— `X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `CF-Connecting-IP` y `CF-IPCountry`. La aplicación usa esas cabeceras para rate limit y país; confiar en valores enviados directamente por internet permite falsearlos. No caches `/r/*`: cada respuesta incluye `no-store`, pero el borde debe respetarla.
+Only trust proxy headers supplied by your controlled ingress. Replace or strip
+client-supplied `X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto`,
+`CF-Connecting-IP` and `CF-IPCountry`; they affect rate limits and country
+analytics. In particular, do not pass arbitrary Cloudflare headers through a
+non-Cloudflare ingress. Do not cache `/r/*`; redirects carry `no-store`.
+Retain CSP, HSTS, `no-referrer` and `nosniff`. JSON bodies are capped at 64 KiB.
 
-Ejemplo nginx básico:
+## Standalone / systemd
 
-```nginx
-location / {
-  client_max_body_size 64k;
-  proxy_set_header X-Forwarded-For $remote_addr;
-  proxy_set_header X-Forwarded-Host $host;
-  proxy_set_header X-Forwarded-Proto https;
-  proxy_pass http://127.0.0.1:3459;
-}
+Build with `npm ci && npm run build` on a build machine. Install the resulting
+`qrforge` executable in `/opt/qr-forge/qrforge`; no static directory, npm,
+Node, database bootstrap script or source code is needed on the runtime host.
+
+Create a `qrforge` system user, a writable `/var/lib/qrforge` (0700), and
+`/etc/qr-forge.env` (0600) containing the public URL and OIDC settings. Set
+`QRFORGE_DB_PATH=/var/lib/qrforge/qrforge.db` for this deployment, not the Docker
+path. Install [deploy/qr-forge.service](deploy/qr-forge.service), reload systemd
+and enable the service. Provision CA certificates for HTTPS to the IdP.
+
+## Release verification
+
+Before publishing: lint, typecheck, `npm test`, `go vet ./cmd/... ./internal/...`,
+browser tests against the binary **and final image**, and the pinned rollback test.
+Publishing is separate from deploying: pushes to main automatically publish
+`:main`/`:sha-…`; version tags publish the version ladder and `:latest`.
+The production compose must pin the approved registry index digest.
+
+The publication workflow now signs build provenance and verifies the repository,
+workflow, source commit and source ref. It also attaches the BuildKit SBOM and
+scans the image. BuildKit metadata alone is not a signature. The initial 0.6.0
+release predates this signing change; do not describe its provenance as signed.
+Verify the exact new digest and successful release checks before deployment.
+
+## Smoke and acceptance
+
+Public: health, page rendered in a browser, processed CSS, logo/favicon/OG image,
+robots/sitemap, unknown redirect 404, unauthenticated API 401 and OIDC redirect.
+Authenticated with an authorized account: sign in, create, download and decode a
+QR, scan without a session, change its destination, scan the **same** code,
+check statistics, deactivate it, verify the redirect stops, and sign out.
+
+Synthetic CI tests are not a substitute for this production account flow. The
+repository cleanup does not claim that a previously pending authenticated smoke
+was performed. Record acceptance and observation results in the deployment log.
+
+## Shutdown
+
+SIGTERM has a bounded budget: 5 seconds HTTP shutdown, 1 second for remaining
+handlers after forced connection closure, 1 second for background tasks, then
+1 second draining queued scans. Compose and systemd allow 10 seconds.
+
+Forced shutdown can truncate responses. If handlers/tasks outlive their final
+budget, the process logs it and proceeds; it does not guarantee their successful
+completion. Scan analytics are best-effort: written, failed and pending counts
+are logged, and analytics failure must never block a valid redirect.
+
+`qrforge health` calls the cheap HTTP probe. Use `qrforge verificar` for
+planned integrity/foreign-key checks, not every 30 seconds in the healthcheck.
+
+## Data, backups and retention
+
+SQLite stores users, hashed sessions, QR codes and scans. Timestamps on disk are
+Unix seconds. No IP or Referer is persisted in scan rows; country is validated
+and User-Agent is truncated. Scan retention defaults to 365 days; cleanup runs
+at startup and every six hours. Sessions default to 12 hours (maximum 24);
+valid back-channel notifications revoke them by deleting session rows.
+
+Use a coherent SQLite backup, not a copy of only the database file while WAL is
+active, for example `sqlite3 /path/qrforge.db '.backup /private/backup.db'`.
+Restrict/encrypt backups and test restoration. No destructive reset command is
+included. Any future schema migration requires a backup, rehearsal on a copy,
+explicit authorization and integrity checks.
+
+## Rollback
+
+The last Node release remains available without retaining its backend source:
+
+```text
+ghcr.io/ulzuhan/qr-forge:0.5.0@sha256:cbe1f7a131443c3113b39502c27159b41969f785ab552e8de234d17adb8b53d5
 ```
 
-La aplicación limita también el JSON en streaming a 64 KiB. Mantén `Referrer-Policy: no-referrer`, CSP, HSTS y `X-Content-Type-Options` tal como se sirven.
+In the infrastructure compose, restore that image and the original command
+`exec node scripts/container-entrypoint.mjs` in the **qr-forge block only**,
+then recreate only that service. The Node executable/entrypoint are inside the
+historical image, not this source tree. Never run both writers together.
 
-## systemd
+Use the current database; do **not** restore a stale backup for a normal rollback:
+it would lose scans and could reactivate revoked sessions. The compatibility
+suite validates Node → Go → Node against this exact image on synthetic data.
+Rollback also restores that release's known behavior/limitations; it is an
+emergency option, not a reason to retain two maintained backends.
 
-Instala el standalone en `/opt/qr-forge`, incluidos `public`, `.next/static` y `scripts/{init-db.mjs,esquema.sql}`. Crea el usuario `qrforge`, `/var/lib/qrforge` con modo `0700` y `/etc/qr-forge.env` con modo `0600`. Copia `deploy/qr-forge.service`, ejecuta `systemctl daemon-reload` y habilita la unidad. El servidor debe tener Node en `/usr/bin/node` o debe ajustarse esa ruta.
+## Monitoring
 
-## El backend es Go desde 0.6.0
-
-**Desplegado el 07-09-2026.** Digest en producción:
-`ghcr.io/ulzuhan/qr-forge:0.6.0@sha256:d0a6a5b93aef6de10792b74f946eb2b456975f3486e3adbf345281f0a6e9a672`
-(el índice, que es lo que resuelve la etiqueta; el manifiesto amd64 es
-`sha256:9935238f…`). Retorno: `0.5.0@sha256:cbe1f7a1…`.
-
-`Dockerfile` construye la imagen con el backend en Go y la interfaz React
-embebida. El de Node queda en `Dockerfile.node` y **ya no se publica**: se
-conserva mientras dure la observación, porque es con lo que se valida el
-retorno a 0.5.0.
-
-Cambia una sola cosa de la receta: **desaparece el entrypoint de Node**. La base
-la inicializa el binario, que además nunca reinicializa una existente ni adopta
-una de otra aplicación. En el compose de infraestructura eso son dos líneas —la
-imagen y `exec node scripts/container-entrypoint.mjs` → `exec qrforge`— y nada
-más: mismos puertos, volumen, redes, límites y variables.
-
-### El apagado, y lo que no garantiza
-
-Al recibir SIGTERM el binario cierra el HTTP y espera; si el plazo vence con
-conexiones abiertas las cierra a la fuerza, **espera a que los manejadores
-salgan**, para los trabajos de fondo, escribe lo que quede en la cola de
-escaneos y sólo entonces cierra SQLite. El reparto es 5 + 1 + 1 + 1 segundos,
-dentro de los 10 de `stop_grace_period`.
-
-**Limitación conocida, y conviene tenerla escrita.** Cuando hay que forzar el
-cierre, las respuestas de las peticiones que seguían abiertas se truncan: quien
-estuviera descargando o esperando una respuesta la ve cortada. Es deliberado —la
-alternativa es consultar una base ya cerrada, que es peor— pero significa que un
-despliegue puede cortar peticiones en curso. Y si tras el plazo de manejadores
-alguno sigue dentro, se cierra igualmente y se registra: quedarse esperando sólo
-garantiza el SIGKILL del contenedor, que corta todo sin escribir nada. Los
-escaneos que no lleguen a escribirse se cuentan y se registran; la analítica es
-best-effort y no bloquea nunca una redirección.
-
-Probada con las restricciones productivas puestas (uid 10001, raíz de sólo
-lectura, tmpfs, `cap_drop: ALL`, no-new-privileges, 256 PIDs, 512 MiB, 1,5 CPU y
-el fichero de entorno): pasa a `healthy`, crea la base con WAL en el volumen y
-ocupa 2,8 MiB en reposo.
-
-`qrforge verificar` corre las comprobaciones caras —`integrity_check` y
-`foreign_key_check`— para validar un despliegue o hacer mantenimiento. El
-healthcheck no las hace: recorrerían la base entera cada treinta segundos.
-
-**Vuelta atrás**: la imagen 0.5.0 anterior, sobre la misma base. Está probado
-—Node 0.5.0 → Go → Node sobre la misma base sintética— que lo que escribe una lo
-lee la otra y que volver no resucita escaneos ni sesiones revocadas. El backup es
-recuperación de desastre, no rollback: restaurarlo perdería escaneos y podría
-reactivar sesiones ya cerradas.
-
-## Datos, privacidad y retención
-
-QR Forge persiste cuentas espejo, sesiones, códigos y escaneos. No guarda IP ni Referer de los escaneos; conserva sólo fecha, país validado y User-Agent truncado. `QRFORGE_SCAN_RETENTION_DAYS` vale 365 por defecto y la limpieza corre al arrancar y cada seis horas. Los límites son 1000 QR por cuenta y 120 creaciones por hora de identidad+IP por defecto.
-
-Las sesiones están revocables en DB y duran 12 horas por defecto, máximo 24. Deshabilitar una cuenta en OIDC no borra automáticamente una sesión local ya emitida: elimina sus filas de `sessions` para revocarla inmediatamente.
-
-## Backups y migraciones
-
-No copies sólo `qrforge.db` mientras el servicio escribe en modo WAL. Usa la API de backup de SQLite, `sqlite3 /var/lib/qrforge/qrforge.db '.backup /ruta/backup.db'`, y cifra/restringe el resultado. Prueba restauraciones y conserva backups menos tiempo que los datos de escaneo.
-
-`npm run db:reset` es destructivo y se niega salvo que se definan explícitamente `QRFORGE_DB_PATH` y `QRFORGE_ALLOW_DB_RESET=YES`. No es una herramienta de upgrade de producción. Antes de una migración: backup coherente, prueba sobre copia, parada del servicio, aplicación y `PRAGMA foreign_key_check`.
-
-## Monitorización e incidentes
-
-Supervisa latencia y códigos 401/403/409/413/429/500/507, tamaño de DB/WAL, espacio, fallos de backup, reinicios y errores de retención. Un crecimiento brusco de escaneos puede ser abuso; el redirect sigue funcionando pero sólo se registran 30 escaneos por minuto por slug e IP.
-
-Antes de desplegar ejecuta `npm ci`, `npm run lint`, `npm run test:unit`, `npm run build`, `npm run test:http`, `npx tsc --noEmit`, `npm audit --omit=dev`, `docker compose config -q` y `docker build --check .`.
+Watch health, restarts/OOM, response errors/latency, memory/CPU, DB/WAL growth,
+free space, backup failures and retention errors. Rate-limited scan recording
+must not prevent redirects. A deployment must not recreate unrelated services.

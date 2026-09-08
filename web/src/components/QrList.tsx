@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Link from "../shim";
+import Link from "../navigation";
 import { QrThumbnail } from "./QrThumbnail";
 import { DeleteButton } from "./DeleteButton";
 import { listarQrs, type QrConCuenta } from "../lib/api";

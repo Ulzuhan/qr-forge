@@ -9,7 +9,6 @@ User=qrforge
 Group=qrforge
 WorkingDirectory=/opt/qr-forge
 EnvironmentFile=/etc/qr-forge.env
-Environment=NODE_ENV=production
 Environment=HOSTNAME=127.0.0.1
 Environment=PORT=3459
 Environment=QRFORGE_DB_PATH=/var/lib/qrforge/qrforge.db
@@ -36,7 +35,7 @@ SystemCallArchitectures=native
 MemoryMax=512M
 TasksMax=256
 CPUQuota=150%
-TimeoutStopSec=30
+TimeoutStopSec=10
 KillMode=control-group
 
 [Install]

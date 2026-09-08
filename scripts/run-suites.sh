@@ -21,15 +21,10 @@ LOG="$(mktemp)"
 
 TODAS=(codigos intencion)
 
-# Qué se arranca. Por omisión el artefacto standalone de Node, que es lo que
-# ejecuta producción hoy. Con QRFORGE_TEST_LAUNCH se apunta la MISMA suite al
-# binario Go: el port sólo se sostiene si las dos pasan lo mismo sin tocar una
-# sola aserción.
-LANZAR="${QRFORGE_TEST_LAUNCH:-node .next/standalone/server.js}"
-# Con qué se compara la antigüedad del servidor. Para Node es el BUILD_ID; para
-# Go, el propio binario. La comprobación no se relaja: sigue negándose a medir
-# un servidor más viejo que lo que se acaba de construir.
-SELLO="${QRFORGE_TEST_BUILD_STAMP:-.next/BUILD_ID}"
+# Go by default; overrides let the same contracts exercise a built image.
+LANZAR="${QRFORGE_TEST_LAUNCH:-./qrforge}"
+# The build stamp detects a server older than the binary under test.
+SELLO="${QRFORGE_TEST_BUILD_STAMP:-./qrforge}"
 SUITES=("${@:-${TODAS[@]}}")
 [ $# -gt 0 ] && SUITES=("$@")
 
@@ -37,7 +32,7 @@ servidor=""
 
 parar() {
   [ -n "$servidor" ] || return 0
-  # El grupo entero: el standalone puede dejar trabajo en curso, y matar sólo al
+  # El grupo entero: el lanzador puede dejar trabajo en curso, y matar sólo al
   # padre deja el puerto ocupado. La siguiente suite encontraría un servidor en
   # pie, decidiría que ya ha arrancado, y mediría el de antes.
   kill -- -"$servidor" 2>/dev/null || kill "$servidor" 2>/dev/null
@@ -67,6 +62,7 @@ arrancar() {
     QRFORGE_OIDC_ISSUER="http://127.0.0.1:9999/application/o/qr-forge/" \
     QRFORGE_OIDC_INTERNAL_BASE="http://127.0.0.1:9999" \
     QRFORGE_PUBLIC_URL="$BASE" \
+    QRFORGE_INSECURE_COOKIES=1 \
     PORT="$PUERTO" \
     HOSTNAME=127.0.0.1 \
     $LANZAR >"$LOG" 2>&1 &

@@ -7,7 +7,7 @@ type Props = {
   slug?: string;
   /** Payload literal (static): se codifica tal cual */
   payload?: string;
-  /** URL pública, decidida en el servidor (ver lib/public-url.ts). */
+  /** URL pública, decidida en el servidor (internal/httpapi/server.go). */
   baseUrl?: string;
   size?: number;
 };

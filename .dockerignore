@@ -3,12 +3,15 @@
 node_modules
 web/node_modules
 docs
-*.db
-*.db-shm
-*.db-wal
-.env
-.env.local
-npm-debug.log*
-# Los assets se compilan dentro de la imagen; un `vite build` local no debe
-# colarse en ella ni decidir qué interfaz se embebe.
+.local
+qrforge
+coverage
+test-results
+playwright-report
+*.db*
+.env*
+*.pem
+*.key
+*.log
+# Always build embedded assets inside the image.
 internal/web/dist

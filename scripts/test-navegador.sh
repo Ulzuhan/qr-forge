@@ -23,7 +23,7 @@ export PUERTO_APP PUERTO_TLS
 LOG="$WORK/servidor.log"
 export QRFORGE_DB_PATH="$WORK/qrforge.db"
 
-LANZAR="${QRFORGE_TEST_LAUNCH:-node .next/standalone/server.js}"
+LANZAR="${QRFORGE_TEST_LAUNCH:-./qrforge}"
 
 servidor=""
 parar() {
@@ -41,10 +41,9 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$LLAVE" -out "$CERT" \
 
 sqlite3 "$QRFORGE_DB_PATH" < scripts/esquema.sql
 
-# NODE_ENV=production porque así corre de verdad. El origen público es el del
-# proxy TLS: es lo que se imprime en los QR y lo que compara el guardián de
+# El origen público es el del proxy TLS: es lo que se imprime en los QR y lo que compara el guardián de
 # origen.
-NODE_ENV=production PORT="$PUERTO_APP" HOSTNAME=127.0.0.1 \
+QRFORGE_INSECURE_COOKIES=0 PORT="$PUERTO_APP" HOSTNAME=127.0.0.1 \
   QRFORGE_DB_PATH="$QRFORGE_DB_PATH" \
   QRFORGE_PUBLIC_URL="$BASE" \
   QRFORGE_PUBLIC_HOST="127.0.0.1:$PUERTO_TLS" \

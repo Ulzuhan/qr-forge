@@ -1,25 +1,23 @@
-# Contratos: qué tiene que cumplir otra implementación para ser QR-Forge
+# Contratos de QR-Forge
 
-Este documento existe porque el servicio se está portando de Node a Go y las dos
-implementaciones tienen que ser **la misma cosa** para quien las usa: las mismas
-URL, los mismos datos, los mismos códigos de respuesta y el mismo papel impreso
-funcionando. Lo que aquí se congela no se cambia sin decirlo.
+La implementación activa es React + Go. Estos contratos protegen las URL
+impresas, la autorización y los datos persistentes; cualquier cambio observable
+requiere documentación y una regresión.
 
-## Cómo se apunta una suite a otra implementación
+## Ejecutar las suites
 
 ```bash
-npm run build                                   # el standalone de Node
-npm run build:web && go build -o /tmp/qrforge ./cmd/qrforge
-
-npm run test:http                               # contra Node
-QRFORGE_TEST_LAUNCH=/tmp/qrforge \
-QRFORGE_TEST_BUILD_STAMP=/tmp/qrforge \
-QRFORGE_INSECURE_COOKIES=1 npm run test:http    # contra Go
+npm run build
+npm run test:http
+npm run test:backchannel
+npm run test:navegador
+npm run test:compatibilidad
 ```
 
-La comprobación de antigüedad del servidor **no se relaja**: sigue negándose a
-medir un proceso más viejo que lo que se acaba de construir. Lo único que cambia
-es cuál es el sello — el `BUILD_ID` de Next o el propio binario.
+Go es el destino por omisión. Los overrides `QRFORGE_TEST_LAUNCH` y
+`QRFORGE_TEST_BUILD_STAMP` permiten probar un artefacto concreto, manteniendo
+la comprobación de antigüedad. La compatibilidad usa la imagen histórica 0.5.0
+por digest, no una segunda implementación en el código fuente.
 
 ## Lo que está congelado
 
@@ -157,20 +155,14 @@ Y una diferencia menor, del port: un cuerpo JSON **válido pero que no es un
 objeto** —`null`, `[]`, `"texto"`— se rechaza con 400. La primera versión en Go
 lo dejaba pasar y un PATCH respondía 200 sin cambiar nada; Node ya daba 400.
 
-## Estado del port
+## Cobertura activa
 
-| | contra Node 0.5.0 | contra Go |
-|---|---|---|
-| `codigos` | 58 | 58 |
-| `intencion` | 12 | 12 |
-| `backchannel` | ✓ | ✓ |
-| unitarias (vitest) | 35 | 35 |
+- Suites HTTP de códigos (61) e intención (12), y back-channel con proveedor sintético firmante.
+- Go: datos, concurrencia, apagado, validación de destinos/intenciones/slugs, SafeNext y discovery OIDC con caché y errores.
+- React: navegación, URL impresa y payloads WiFi/email; navegador contra binario e imagen final.
+- Compatibilidad Node 0.5.0 → Go → Node: 25 comprobaciones sobre la misma base sintética.
 
-Más las suyas propias en Go: almacén —fechas en segundos, cuota bajo carrera,
-colisión de slug, cascadas, integridad, serie contra total, aislamiento, base
-ajena no reinicializada— e identidad, con las tres correcciones de arriba.
-
-## Lo que esta entrega no hace
-
-No mide, no compara rendimiento, no publica imágenes y no despliega. El código
-legado se conserva en la rama para poder validar el retorno.
+Las antiguas pruebas unitarias de Node se retiraron con su implementación;
+los casos relevantes viven en Go y en las funciones que utiliza React, no en
+copias de código muerto. Las pruebas sintéticas no acreditan por sí solas un
+smoke autenticado en producción. Véase [DEPLOYMENT.md](DEPLOYMENT.md).
