@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS "qr_codes" (
 CREATE INDEX `qr_codes_user_idx` ON `qr_codes` (`user_id`);
 CREATE TABLE IF NOT EXISTS "users" (
 	`id` text PRIMARY KEY NOT NULL,
-	-- Identificador estable que da Authentik. La identidad es esto, no el email:
+	-- Identificador estable que da el proveedor OIDC. La identidad es esto, no el email:
 	-- alguien puede cambiarse el correo y seguir siendo la misma persona.
 	`oidc_sub` text NOT NULL UNIQUE,
 	`email` text NOT NULL,

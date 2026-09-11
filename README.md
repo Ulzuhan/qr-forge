@@ -19,8 +19,9 @@ npm or browser runtime; Node is needed only to build the frontend and run tests.
 ## Access
 
 Accounts live in the configured **OIDC provider**, not in a local password
-database. Authentik is used by the KaiCorp deployment. The active integration
-is in `internal/auth/` and `internal/httpapi/identidad.go`. Without OIDC
+database: any standard OIDC provider works, and none of their paths are written
+into the code. The active integration is in `internal/auth/` and
+`internal/httpapi/identidad.go`. Without OIDC
 configuration nobody can sign in or create codes. SQLite keeps an identity
 mirror (`users.oidc_sub`) and revocable sessions identified by a SHA-256 hash of
 the cookie token; the raw token is not stored in the database.

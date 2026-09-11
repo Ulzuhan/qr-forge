@@ -1,7 +1,7 @@
 /**
  * Lo que comparten las suites HTTP.
  *
- * La identidad la lleva Authentik entera, así que las pruebas abren sesión como
+ * La identidad la lleva entera el proveedor OIDC, así que las pruebas abren sesión como
  * la abre la aplicación: el token va en la cookie y en la base se guarda su
  * SHA-256, nunca el token. Por eso hay que replicar el hash aquí — un volcado de
  * la base no da sesiones usables, que es justamente lo que se quiere.
