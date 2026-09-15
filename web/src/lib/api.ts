@@ -1,4 +1,6 @@
 /** Lo que el navegador necesita de la API, con los tipos que devuelve Go. */
+export type StaticKind = "url" | "wifi" | "email" | "text";
+
 export type Qr = {
   id: string;
   type: "dynamic" | "static";
@@ -6,7 +8,7 @@ export type Qr = {
   description: string | null;
   destinationUrl: string | null;
   staticPayload: string | null;
-  staticKind: string | null;
+  staticKind: StaticKind | null;
   campaign: string | null;
   isActive: boolean;
   expiresAt: string | null;

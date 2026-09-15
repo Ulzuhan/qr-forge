@@ -10,70 +10,36 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-// globals.css ya importa los otros tres y Tailwind; importarlos aquí otra vez
-// sólo duplicaría reglas.
-import "./globals.css";
+import "./styles.css";
 
-import Link from "./navigation";
-import { KaiCorpHeader } from "./components/kaicorp-header";
-import { KaiCorpFooter } from "./components/kaicorp-footer";
 import { KaiCorpAccountMenu } from "./components/kaicorp-account-menu";
-import { Landing } from "./components/Landing";
-import { QrList } from "./components/QrList";
-import { NewQrForm } from "./components/NewQrForm";
+import { KaiCorpFooter } from "./components/kaicorp-footer";
+import { KaiCorpHeader } from "./components/kaicorp-header";
+import { contexto } from "./lib/api";
+import { Dashboard } from "./screens/Dashboard";
 import { Detail } from "./screens/Detail";
 import { Edit } from "./screens/Edit";
-import { contexto } from "./lib/api";
+import { Landing } from "./screens/Landing";
+import { NewQr } from "./screens/NewQr";
+import { NotFound } from "./screens/NotFound";
+import { ButtonLink } from "./ui/Button";
+import { ToastProvider } from "./ui/Toast";
+import { IconLogIn, IconPlus } from "./ui/icons";
 
 const ctx = contexto();
 
-function Pantalla() {
+function Screen() {
   switch (ctx.pagina) {
     case "dashboard":
-      return (
-        <div className="kc-workspace qr-workspace max-w-7xl mx-auto px-4 sm:px-6 py-8">
-          <div className="qr-page-heading mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Your QR Codes</h1>
-            <p className="text-muted-foreground mt-1">
-              Dynamic, editable, trackable. The QR image never changes — you change
-              where it points.
-            </p>
-          </div>
-          <QrList baseUrl={ctx.publicUrl} />
-        </div>
-      );
+      return <Dashboard baseUrl={ctx.publicUrl} />;
     case "new":
-      return (
-        <div className="kc-workspace qr-workspace max-w-5xl mx-auto px-4 sm:px-6 py-8">
-          <h1 className="text-3xl font-bold tracking-tight">Create new QR</h1>
-          <p className="text-muted-foreground mt-1 mb-8">
-            {ctx.intencion
-              ? "The details came with the link. Check them and save."
-              : "Generate a dynamic QR. You can change where it points later."}
-          </p>
-          <NewQrForm initial={ctx.intencion} />
-        </div>
-      );
+      return <NewQr baseUrl={ctx.publicUrl} initial={ctx.intencion} />;
     case "detail":
       return <Detail id={ctx.qrId} baseUrl={ctx.publicUrl} />;
     case "edit":
-      return <Edit id={ctx.qrId} />;
+      return <Edit id={ctx.qrId} baseUrl={ctx.publicUrl} />;
     case "notfound":
-      return (
-        <div className="kc-workspace qr-workspace max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
-          <p className="text-6xl mb-4">🔍</p>
-          <h1 className="text-2xl font-bold tracking-tight mb-2">QR not found</h1>
-          <p className="text-muted-foreground mb-6">
-            It may have been deleted, or it belongs to someone else.
-          </p>
-          <Link
-            href="/"
-            className="inline-block px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
-          >
-            ← All QRs
-          </Link>
-        </div>
-      );
+      return <NotFound signedIn={Boolean(ctx.email)} />;
     default:
       return <Landing baseUrl={ctx.publicUrl} />;
   }
@@ -81,42 +47,37 @@ function Pantalla() {
 
 function App() {
   return (
-    <>
+    <ToastProvider>
+      <div className="atmosphere" aria-hidden />
       <KaiCorpHeader app="QR-Forge">
         {ctx.email ? (
           <>
-            <Link
-              href="/new"
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              {/* En móvil no cabe el texto completo junto al menú. */}
-              <span className="sm:hidden">+ New</span>
-              <span className="hidden sm:inline">+ New QR</span>
-            </Link>
+            <ButtonLink href="/new" variant="primary" size="sm">
+              <IconPlus size={15} />
+              New QR
+            </ButtonLink>
             <KaiCorpAccountMenu email={ctx.email} accountUrl={ctx.cuentaUrl} />
           </>
         ) : (
-          <Link
-            href="/api/auth/login"
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
+          <ButtonLink href="/api/auth/login" variant="secondary" size="sm">
+            <IconLogIn size={15} />
             Sign in
-          </Link>
+          </ButtonLink>
         )}
       </KaiCorpHeader>
 
-      <main className="flex-1">
-        <Pantalla />
+      <main className="flex flex-1 flex-col">
+        <Screen />
       </main>
 
       <KaiCorpFooter current="qr-forge" />
-    </>
+    </ToastProvider>
   );
 }
 
-const raiz = document.getElementById("app");
-if (raiz) {
-  createRoot(raiz).render(
+const root = document.getElementById("app");
+if (root) {
+  createRoot(root).render(
     <StrictMode>
       <App />
     </StrictMode>
