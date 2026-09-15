@@ -3,7 +3,14 @@
  * el navegador ya sabe hacer con Intl, y dos espejos de reglas del servidor.
  */
 
-const relativo = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+// En inglés a propósito, no en el idioma del navegador. La interfaz entera
+// está en inglés —incluido el «just now» de aquí debajo y el mes de
+// formatDay—, así que con el idioma por omisión un navegador en español
+// mezclaba «hace 5 minutos» bajo una etiqueta «Created». Las fechas
+// absolutas (formatDate/formatDateTime) sí siguen al navegador: una fecha
+// localizada junto a una etiqueta en inglés no se contradice, una frase a
+// medias sí. LinkUp ancla la suya igual.
+const relativo = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 /** «just now», «3 minutes ago», «yesterday»… Sin cifras negativas ni «in». */
 export function timeAgo(iso: string, now: number = Date.now()): string {
