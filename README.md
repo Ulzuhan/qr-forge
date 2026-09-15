@@ -118,7 +118,7 @@ origin/OIDC, then use `docker compose up -d --build`. See
 | `internal/httpapi` | HTTP API, authorization, HTML, redirects and bounded scan queue |
 | `internal/auth` | OIDC discovery, PKCE and back-channel logout |
 | `internal/store` | Explicit SQL, transactions, sessions and retention |
-| `web/src` | React interface, QR rendering and PNG/SVG downloads |
+| `web/src` | React interface: `screens/` (one per page), `components/`, a small `ui/` kit, hand-drawn QR rendering and PNG/SVG downloads |
 | `internal/web` | Embedded Vite assets; generated output is not versioned |
 | `scripts` | Isolated HTTP, browser and historical compatibility tests |
 
