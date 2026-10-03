@@ -1,6 +1,6 @@
 # React assets are built separately; the runtime contains Go and CA certificates.
 
-FROM node:22-bookworm-slim AS assets
+FROM node:24-bookworm-slim AS assets
 WORKDIR /app
 # Playwright es dependencia de desarrollo y su instalación baja navegadores.
 # Aquí no se usan y no deben aparecer ni en esta capa intermedia.
