@@ -60,7 +60,7 @@
   },
   "overrides": {
     "postcss": "^8.5.18",
-    "nanoid": "3.3.19",
+    "nanoid": "6.0.1",
     "js-yaml": "^5.0.0",
     "brace-expansion@^1.1.7": "^1.1.21",
     "brace-expansion@^5.0.8": "^5.0.12"
