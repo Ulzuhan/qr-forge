@@ -214,22 +214,24 @@ try {
   const campoEdicion = pagina.locator('input[type="url"], input[name="destinationUrl"]').first();
   await campoEdicion.waitFor({ timeout: 20_000 });
   await campoEdicion.fill(nuevoDestino);
-  // Guardar NO navega: la pantalla de edición se queda donde está y recarga, que
-  // es lo que hace el producto. Se espera la respuesta del PATCH, que es el
-  // hecho que importa.
+  // Guardar vuelve a la ficha mediante navegación completa. La respuesta del
+  // PATCH llega antes: hay que esperar también a que termine esa navegación
+  // para no cancelarla al refrescar las estadísticas después.
   const [guardado] = await Promise.all([
     pagina.waitForResponse((r) => r.url().includes(`/api/qr/${slug}`) && r.request().method() === "PATCH",
       { timeout: 20_000 }),
     pagina.getByRole("button", { name: /save|guardar/i }).first().click(),
   ]);
   check("la edición se guarda", guardado.status(), 200);
+  await pagina.waitForURL(`${BASE}/${slug}`, { waitUntil: "load", timeout: 20_000 });
+  check("guardar vuelve a la ficha", new URL(pagina.url()).pathname, `/${slug}`);
   const otroSalto = await visitante.goto(corta, { waitUntil: "domcontentloaded" });
   // Esto es la promesa entera del producto: el papel no cambia, el destino sí.
   check("el MISMO código ya lleva al destino nuevo", otroSalto.url(), nuevoDestino);
   await anonimo.close();
 
   console.log("\nLas estadísticas cuentan lo que pasó");
-  await pagina.goto(`${BASE}/${slug}`, { waitUntil: "networkidle" });
+  await pagina.reload({ waitUntil: "networkidle" });
   await pagina.waitForFunction(() => document.body.innerText.includes("Total scans"), null, { timeout: 15_000 });
   const total = await pagina.locator("text=Total scans").locator("xpath=..").innerText();
   check("los dos escaneos están contados", /\b2\b/.test(total), true);
