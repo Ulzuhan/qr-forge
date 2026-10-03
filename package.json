@@ -1,7 +1,7 @@
 {
   "name": "qr-forge",
   "version": "0.7.0",
-  "description": "Dynamic and static QR codes, self-hosted: the printed code never changes, you change where it points — with privacy-minimized scan analytics.",
+  "description": "Dynamic and static QR codes, self-hosted: the printed code never changes, you change where it points \u2014 with privacy-minimized scan analytics.",
   "license": "MIT",
   "author": "Ulzuhan",
   "repository": {
@@ -55,13 +55,14 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8.60.1",
-    "vite": "8.3.0",
+    "vite": "8.3.2",
     "vitest": "^4.1.11"
   },
   "overrides": {
     "postcss": "^8.5.18",
     "nanoid": "3.3.19",
     "js-yaml": "^5.0.0",
-    "brace-expansion": "^2.0.2"
+    "brace-expansion@^1.1.7": "^1.1.21",
+    "brace-expansion@^5.0.8": "^5.0.12"
   }
 }
