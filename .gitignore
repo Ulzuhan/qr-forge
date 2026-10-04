@@ -24,3 +24,5 @@ node_modules/
 # Old local build artifacts are not source and must never be committed
 /.next/
 next-env.d.ts
+__pycache__/
+*.pyc

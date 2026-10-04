@@ -1,0 +1,8 @@
+{
+  "version": "0.7.0",
+  "digest": "sha256:76bcca8a6028d02c82bf3ddc5625d1705a100a38891601990350ee3f77372f74",
+  "source": "cee4e785b9b2475422b906a7180ad0693156a49d",
+  "run": 34953962755,
+  "attempt": 1,
+  "store_contract": "qrforge-sqlite-v1"
+}

@@ -39,7 +39,7 @@ mark it completed. The user explicitly authorized source cleanup separately.
 
 Before releasing these source changes: review the diff, run the documented CI
 checks, then authorize commit/push/publication and deployment separately.
-Pushing main publishes an image. Validate the exact release digest and its
+Pushing main runs read-only CI; publishing requires a stable tag push. Validate the exact release digest and its
 signed provenance before pinning it in infrastructure. Complete/record the real
 account flow described in DEPLOYMENT.md if still outstanding.
 
