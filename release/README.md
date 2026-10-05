@@ -38,6 +38,6 @@ elegir explícitamente el punto temporal, reconciliar escrituras y revocaciones,
 parar el escritor y revisar todos los archivos asociados. No se autoriza por un
 healthcheck fallido. Estas pruebas no leen ni acreditan datos productivos.
 
-Este borrador no cambia versión ni publica una release, y no activa el miniPC.
-La integración futura requiere aprobar ambos PRs, la publicación de una versión
-nueva y la instalación supervisada de la política de infraestructura.
+La release 0.7.1 integra esta vía sin cambiar formato, API ni configuración
+runtime. Publicar no activa el miniPC: aprobar su digest en infraestructura y
+realizar la instalación supervisada son decisiones independientes.
