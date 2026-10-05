@@ -1,0 +1,13 @@
+{
+  "baseline_source": "cee4e785b9b2475422b906a7180ad0693156a49d",
+  "data_action": "image-only",
+  "files": {
+    "cmd/qrforge/main.go": "a2473ac2ee09e6ac8bf47be24fa09c4d2f6a75a9bcfa5859624f1e311a2d6b0b",
+    "internal/store/estadisticas.go": "e8bb46376499852b582e8b2d4a820ecffe1902c4051b369b9fd1a54b89b6b55f",
+    "internal/store/modelo.go": "fb6bdda50c8c860ad528523b8232434072daf56674bfbf8aca56b99309e0fa05",
+    "internal/store/qr.go": "6c63f783bf6d0e56b07aa92ab307796fb6a5e8d5fa406e198b1ddf596b662859",
+    "internal/store/schema.sql": "2da52d08e5f66e70694e8da9b9d7014daa2a2785901c4f53d5e7d801344aea12",
+    "internal/store/store.go": "9babf803a4b5b935f6166b117844b5a630f1af8ebb3a077dbccee17946a7f8ea",
+    "internal/store/usuarios.go": "d9dfc124eaf845e70cf2d0e1a3208416aa3cbee622eadcaf48f28a6926c04462"
+  }
+}

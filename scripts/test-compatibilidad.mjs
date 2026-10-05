@@ -13,6 +13,15 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
+const anterior = process.env.QRFORGE_COMPAT_LABEL || "Node 0.5.0";
+const esperarEscaneos = async (n) => {
+  for (let i = 0; i < 100; i++) {
+    if (Number(sql("SELECT COUNT(*) FROM qr_scans")) >= n) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("async scan queue did not persist expected rows");
+};
+
 const paso = process.argv[2];
 const BASE = process.env.BASE;
 const DB = process.env.QRFORGE_DB_PATH;
@@ -62,7 +71,7 @@ const TOKEN_B = "b".repeat(64);
 const TOKEN_REVOCADO = "c".repeat(64);
 
 if (paso === "sembrar-node") {
-  console.log("Node 0.5.0 siembra");
+  console.log(`${anterior} siembra`);
   // Dos cuentas y sus sesiones, escritas en la base como las escribiría el login.
   const ahora = Math.floor(Date.now() / 1000);
   sql(`INSERT INTO users (id, oidc_sub, email, name, created_at, last_seen_at)
@@ -91,6 +100,7 @@ if (paso === "sembrar-node") {
 
   // Escaneos de verdad, por la ruta pública.
   for (let i = 0; i < 3; i++) await fetch(`${BASE}/r/cartel`, { redirect: "manual" });
+  await esperarEscaneos(3);
   check("los escaneos se registran", Number(sql("SELECT COUNT(*) FROM qr_scans")), 3);
 
   // Y una sesión revocada: se borra, que es como se revoca aquí.
@@ -102,7 +112,7 @@ if (paso === "sembrar-node") {
 }
 
 if (paso === "verificar-go") {
-  console.log("Go, sobre lo que dejó Node 0.5.0");
+  console.log(`Candidato Go, sobre lo que dejó ${anterior}`);
   const lista = await api("/api/qr", { headers: { cookie: cookieDe(TOKEN_A) } });
   check("la sesión de Node sirve en Go", lista.status, 200);
   check("  y ve sus dos QRs", lista.body.qrs.length, 2);
@@ -133,12 +143,13 @@ if (paso === "verificar-go") {
   const trasCambio = await fetch(`${BASE}/r/cartel`, { redirect: "manual" });
   check("el MISMO QR ya apunta al destino nuevo", trasCambio.headers.get("location"), "https://example.com/nuevo");
 
+  await esperarEscaneos(leer().escaneos + 2);
   guardar({ escaneos: Number(sql("SELECT COUNT(*) FROM qr_scans")) });
   resumen();
 }
 
 if (paso === "verificar-node") {
-  console.log("Node 0.5.0 otra vez: la vuelta atrás");
+  console.log(`${anterior} otra vez: la vuelta atrás`);
   const lista = await api("/api/qr", { headers: { cookie: cookieDe(TOKEN_A) } });
   check("la sesión sigue valiendo", lista.status, 200);
   check("Node lee lo que creó Go", lista.body.qrs.some((q) => q.id === "dego"), true);

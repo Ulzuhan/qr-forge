@@ -10,4 +10,4 @@ Node is only a frontend/build/test tool; do not add a Node server or Next.js.
 - Check npm run lint, npm run typecheck and npm test. UI changes also require npm run test:navegador against the binary and final image.
 - Keep the rollback test against the pinned historical image; it does not require legacy source in this branch.
 - Never commit generated assets, binaries, databases, environment files, certificates or test output.
-- Publishing is an external action: pushing main publishes an image. Do not push, tag or deploy without explicit authorization.
+- Publishing is an external action: pushing main runs read-only CI; only a stable tag push can publish the gated OCI. Do not push, tag or deploy without explicit authorization.
