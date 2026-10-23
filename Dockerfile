@@ -14,7 +14,7 @@ COPY web ./web
 COPY public ./public
 RUN npx vite build
 
-FROM golang:1.27.1-bookworm AS build
+FROM golang:1.27.3-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
