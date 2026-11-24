@@ -25,11 +25,12 @@ type datos struct {
 	CSS         []string
 	// Lo que el navegador necesita saber y no puede deducir: quién es, a dónde
 	// apunta la cuenta, cuál es la URL impresa y qué QR se está mirando.
-	Email     string
-	CuentaURL string
-	PublicURL string
-	QrID      string
-	Footer    bool
+	Email      string
+	CuentaURL  string
+	SessionURL string
+	PublicURL  string
+	QrID       string
+	Footer     bool
 	// Intención de LinkUp, ya validada por el servidor.
 	IntentURL   string
 	IntentTitle string
@@ -42,7 +43,8 @@ const (
 )
 
 func (s *Server) documento(w http.ResponseWriter, r *http.Request, d datos) {
-	politica, nonce := csp()
+	sessionURL, sessionOrigin := s.sesionURL()
+	politica, nonce := csp(sessionOrigin)
 	if nonce == "" {
 		http.Error(w, "no random available", http.StatusServiceUnavailable)
 		return
@@ -55,6 +57,7 @@ func (s *Server) documento(w http.ResponseWriter, r *http.Request, d datos) {
 	d.Nonce = nonce
 	d.JS, d.CSS = s.recursos.JS, s.recursos.CSS
 	d.CuentaURL = cuentaURL()
+	d.SessionURL = sessionURL
 	d.PublicURL = s.publicURL
 	d.Footer = strings.TrimSpace(os.Getenv("KAICORP_FOOTER_LINKS")) != ""
 	if d.Titulo == "" {
@@ -70,23 +73,35 @@ func (s *Server) documento(w http.ResponseWriter, r *http.Request, d datos) {
 	_ = plantilla.Execute(w, d)
 }
 
+func urlExternaValida(nombre string) (string, string) {
+	crudo := strings.TrimSpace(os.Getenv(nombre))
+	if crudo == "" {
+		return "", ""
+	}
+	u, err := url.Parse(crudo)
+	if err != nil || u.User != nil || u.Host == "" {
+		return "", ""
+	}
+	loopback := u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost" || u.Hostname() == "::1"
+	if u.Scheme != "https" && !(loopback && u.Scheme == "http") {
+		return "", ""
+	}
+	return u.String(), u.Scheme + "://" + u.Host
+}
+
 // cuentaURL es la página de la cuenta EN EL PROVEEDOR: correo, contraseña,
 // segundo factor, sesiones. Nada de eso lo lleva esta aplicación. Sin la
 // variable, el menú no enlaza a ninguna parte.
 func cuentaURL() string {
-	crudo := strings.TrimSpace(os.Getenv("QRFORGE_ACCOUNT_URL"))
-	if crudo == "" {
-		return ""
+	full, _ := urlExternaValida("QRFORGE_ACCOUNT_URL")
+	return full
+}
+
+func (s *Server) sesionURL() (string, string) {
+	if s.oidc == nil {
+		return "", ""
 	}
-	u, err := url.Parse(crudo)
-	if err != nil || u.User != nil {
-		return ""
-	}
-	loopback := u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost" || u.Hostname() == "::1"
-	if u.Scheme != "https" && !(loopback && u.Scheme == "http") {
-		return ""
-	}
-	return u.String()
+	return urlExternaValida("QRFORGE_ACCOUNT_SESSION_URL")
 }
 
 // aLogin manda a entrar conservando a dónde iba, incluida la query: es lo que
@@ -100,8 +115,19 @@ func aLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) portada(w http.ResponseWriter, r *http.Request) {
+	u := s.usuario(r)
+	if r.URL.Query().Get("sso") == "1" {
+		if u != nil {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		if s.oidc != nil {
+			http.Redirect(w, r, "/api/auth/login", http.StatusFound)
+			return
+		}
+	}
 	pantalla, correo := "landing", ""
-	if u := s.usuario(r); u != nil {
+	if u != nil {
 		pantalla, correo = "dashboard", u.Email
 	}
 	s.documento(w, r, datos{Pagina: pantalla, Email: correo, Canonica: s.canonica("/")})
@@ -151,16 +177,37 @@ func (s *Server) paginaDeQR(w http.ResponseWriter, r *http.Request, pantalla str
 }
 
 func (s *Server) noEncontrado(w http.ResponseWriter, r *http.Request, correo string) {
-	politica, nonce := csp()
+	sessionURL, sessionOrigin := s.sesionURL()
+	politica, nonce := csp(sessionOrigin)
 	h := w.Header()
 	h.Set("Content-Security-Policy", politica)
 	h.Set("Content-Type", "text/html; charset=utf-8")
 	h.Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNotFound)
+	if r.Method == http.MethodHead {
+		return
+	}
 	_ = plantilla.Execute(w, datos{Pagina: "notfound", Email: correo, Nonce: nonce,
 		JS: s.recursos.JS, CSS: s.recursos.CSS, Titulo: "Not found — QR-Forge",
 		Descripcion: descripcion, NoIndex: true, CuentaURL: cuentaURL(),
-		PublicURL: s.publicURL, Footer: strings.TrimSpace(os.Getenv("KAICORP_FOOTER_LINKS")) != ""})
+		SessionURL: sessionURL, PublicURL: s.publicURL,
+		Footer: strings.TrimSpace(os.Getenv("KAICORP_FOOTER_LINKS")) != ""})
+}
+
+func (s *Server) errorHTML(w http.ResponseWriter, r *http.Request, estado int, titulo, mensaje string) {
+	h := w.Header()
+	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+	h.Set("Content-Type", "text/html; charset=utf-8")
+	h.Set("Cache-Control", "no-store")
+	w.WriteHeader(estado)
+	if r.Method == http.MethodHead {
+		return
+	}
+	_ = errorPlantilla.Execute(w, struct {
+		Estado  int
+		Titulo  string
+		Mensaje string
+	}{Estado: estado, Titulo: titulo, Mensaje: mensaje})
 }
 
 func (s *Server) canonica(ruta string) string {
@@ -215,8 +262,48 @@ var plantilla = template.Must(template.New("doc").Parse(
 {{range .CSS}}<link rel="stylesheet" href="{{.}}">
 {{end}}</head>
 <body class="min-h-full flex flex-col">
-<div id="app" data-page="{{.Pagina}}"{{if .Email}} data-email="{{.Email}}"{{end}}{{if .QrID}} data-qr-id="{{.QrID}}"{{end}}{{if .CuentaURL}} data-account-url="{{.CuentaURL}}"{{end}}{{if .PublicURL}} data-public-url="{{.PublicURL}}"{{end}}{{if .Footer}} data-footer-links="on"{{end}}{{if .IntentURL}} data-intent-url="{{.IntentURL}}"{{end}}{{if .IntentTitle}} data-intent-title="{{.IntentTitle}}"{{end}}{{if .IntentFrom}} data-intent-from="{{.IntentFrom}}"{{end}}></div>
+<div id="app" data-page="{{.Pagina}}"{{if .Email}} data-email="{{.Email}}"{{end}}{{if .QrID}} data-qr-id="{{.QrID}}"{{end}}{{if .CuentaURL}} data-account-url="{{.CuentaURL}}"{{end}}{{if .SessionURL}} data-session-url="{{.SessionURL}}"{{end}}{{if .PublicURL}} data-public-url="{{.PublicURL}}"{{end}}{{if .Footer}} data-footer-links="on"{{end}}{{if .IntentURL}} data-intent-url="{{.IntentURL}}"{{end}}{{if .IntentTitle}} data-intent-title="{{.IntentTitle}}"{{end}}{{if .IntentFrom}} data-intent-from="{{.IntentFrom}}"{{end}}></div>
 {{if .JS}}<script type="module" nonce="{{.Nonce}}" src="{{.JS}}"></script>{{end}}
+</body></html>
+`))
+
+var errorPlantilla = template.Must(template.New("error").Parse(`<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Estado}} — {{.Titulo}} — QR-Forge</title>
+<link rel="icon" href="/kaicorp-mark.png">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100svh; display: grid; place-items: center; padding: 24px;
+    background: #0b0d12; color: #ebedf2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    width: 100%; max-width: 480px; border: 1px solid rgba(255,255,255,0.1);
+    background: #131722; border-radius: 16px; padding: 28px;
+  }
+  .brand { font-size: 13px; color: #9aa3b2; margin-bottom: 12px; }
+  .code { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: #f59e0b; margin-bottom: 8px; }
+  h1 { font-size: 24px; line-height: 1.2; margin-bottom: 10px; }
+  p { font-size: 14px; line-height: 1.6; color: #b7c0cf; margin-bottom: 20px; }
+  a {
+    display: inline-flex; align-items: center; padding: 10px 16px;
+    border-radius: 10px; background: #ebedf2; color: #0b0d12;
+    font-size: 14px; font-weight: 600; text-decoration: none;
+  }
+  a:hover { opacity: 0.92; }
+</style>
+</head><body>
+<main>
+  <p class="brand">QR-Forge · KaiCorp Labs</p>
+  <p class="code">HTTP {{.Estado}}</p>
+  <h1>{{.Titulo}}</h1>
+  <p>{{.Mensaje}}</p>
+  <a href="/">Back to QR-Forge</a>
+</main>
 </body></html>
 `))
 
@@ -227,6 +314,15 @@ var plantilla = template.Must(template.New("doc").Parse(
 // patrones, ninguno es más específico, y Go se niega a registrarlos. Las URL
 // impresas no se tocan; sólo cambia quién las resuelve.
 func (s *Server) paginas(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+		errorJSON(w, http.StatusNotFound, "Not found")
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
 	ruta := strings.Trim(r.URL.Path, "/")
 	if ruta == "" {
 		s.portada(w, r)

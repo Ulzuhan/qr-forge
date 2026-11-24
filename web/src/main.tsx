@@ -41,7 +41,7 @@ function Screen() {
     case "notfound":
       return <NotFound signedIn={Boolean(ctx.email)} />;
     default:
-      return <Landing baseUrl={ctx.publicUrl} />;
+      return <Landing baseUrl={ctx.publicUrl} sessionUrl={ctx.sessionUrl} />;
   }
 }
 

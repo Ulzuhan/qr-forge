@@ -1,4 +1,9 @@
 import { DestinationDemo } from "../components/DestinationDemo";
+import {
+  clearLandingSessionSuppression,
+  type LandingSessionState,
+  useLandingSession,
+} from "../lib/use-landing-session";
 import { ButtonLink } from "../ui/Button";
 import { Notice } from "../ui/Notice";
 import {
@@ -16,9 +21,103 @@ import {
 
 const ENROLL_URL = "https://auth.kaicorplabs.com/if/flow/enroll-qr-forge/";
 
+function LandingActions({
+  sessionState,
+  align,
+  secondaryVariant = "secondary",
+  secondaryLabel = "Sign in",
+}: {
+  sessionState: LandingSessionState | null;
+  align: "left" | "center";
+  secondaryVariant?: "secondary" | "ghost";
+  secondaryLabel?: string;
+}) {
+  const rowAlign = align === "center" ? "justify-center" : "justify-center lg:justify-start";
+
+  if (!sessionState) {
+    return (
+      <>
+        <div className={`mt-8 flex flex-col gap-3 sm:flex-row ${rowAlign}`}>
+          <ButtonLink href={ENROLL_URL} variant="primary" size="lg">
+            Request an account
+            <IconArrowRight size={18} />
+          </ButtonLink>
+          <ButtonLink href="/api/auth/login" variant={secondaryVariant} size="lg">
+            <IconLogIn size={18} />
+            {secondaryLabel}
+          </ButtonLink>
+        </div>
+        {align === "left" && (
+          <p className="mt-4 text-xs text-text-3">
+            Already have a KaiCorp Labs account? Sign in and it will ask for access to this one.
+          </p>
+        )}
+      </>
+    );
+  }
+
+  if (sessionState.kind === "continue") {
+    return (
+      <>
+        <div className={`mt-8 flex flex-col gap-3 sm:flex-row ${rowAlign}`}>
+          <ButtonLink
+            href="/api/auth/login"
+            variant="primary"
+            size="lg"
+            onClick={clearLandingSessionSuppression}
+          >
+            <IconLogIn size={18} />
+            Continue as {sessionState.name}
+          </ButtonLink>
+        </div>
+        <p className="mt-4 text-xs text-text-3">Signed in to your KaiCorp Labs account.</p>
+      </>
+    );
+  }
+
+  const label =
+    sessionState.kind === "requestable"
+      ? "Ask for access"
+      : sessionState.kind === "pending"
+        ? "View request"
+        : "Your account";
+  const statusNote =
+    sessionState.kind === "pending"
+      ? " · Waiting for approval"
+      : sessionState.kind === "invite_only"
+        ? " · By invitation only"
+        : " · Request access from your account page";
+
+  return (
+    <>
+      <div className={`mt-8 flex flex-col gap-3 sm:flex-row ${rowAlign}`}>
+        <ButtonLink
+          href={sessionState.accountUrl}
+          variant={sessionState.kind === "requestable" ? "primary" : "secondary"}
+          size="lg"
+        >
+          {label}
+          <IconArrowRight size={18} />
+        </ButtonLink>
+      </div>
+      <p className="mt-4 text-xs text-text-3">
+        Signed in as {sessionState.name}
+        {statusNote}
+      </p>
+    </>
+  );
+}
+
 /** Lo que ve quien no ha entrado. */
-export function Landing({ baseUrl }: { baseUrl: string }) {
+export function Landing({
+  baseUrl,
+  sessionUrl = null,
+}: {
+  baseUrl: string;
+  sessionUrl?: string | null;
+}) {
   const signinFailed = new URLSearchParams(window.location.search).get("error") === "signin";
+  const sessionState = useLandingSession(sessionUrl, "/api/auth/login");
 
   return (
     <div className="flex flex-1 flex-col overflow-x-clip">
@@ -41,19 +140,7 @@ export function Landing({ baseUrl }: { baseUrl: string }) {
               A dynamic QR code encodes a short link on your own server. Change where it goes whenever you like:
               the code on the poster never changes. Every scan is counted, and none of them is tied to a person.
             </p>
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
-              <ButtonLink href={ENROLL_URL} variant="primary" size="lg">
-                Request an account
-                <IconArrowRight size={18} />
-              </ButtonLink>
-              <ButtonLink href="/api/auth/login" variant="secondary" size="lg">
-                <IconLogIn size={18} />
-                Sign in
-              </ButtonLink>
-            </div>
-            <p className="mt-4 text-xs text-text-3">
-              Already have a KaiCorp Labs account? Sign in and it will ask for access to this one.
-            </p>
+            <LandingActions sessionState={sessionState} align="left" />
           </div>
           <div className="animate-rise [animation-delay:120ms]">
             <DestinationDemo baseUrl={baseUrl} />
@@ -184,15 +271,12 @@ export function Landing({ baseUrl }: { baseUrl: string }) {
             Accounts are approved by hand, so this stays a small place. Your codes are yours: nobody else on this
             instance can see them, and there is no analytics company in the middle.
           </p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <ButtonLink href={ENROLL_URL} variant="primary" size="lg">
-              Request an account
-              <IconArrowRight size={18} />
-            </ButtonLink>
-            <ButtonLink href="/api/auth/login" variant="ghost" size="lg">
-              I already have one
-            </ButtonLink>
-          </div>
+          <LandingActions
+            sessionState={sessionState}
+            align="center"
+            secondaryVariant="ghost"
+            secondaryLabel="I already have one"
+          />
         </div>
       </section>
     </div>
