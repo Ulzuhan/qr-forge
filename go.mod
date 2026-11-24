@@ -1,8 +1,8 @@
 module github.com/Ulzuhan/qr-forge
 
-// 1.27.1, el mismo que SecretDrop: no se estrena un servicio en un compilador
+// 1.27.4, el mismo que SecretDrop: no se estrena un servicio en un compilador
 // fuera de la ventana de soporte ordinaria.
-go 1.27.1
+go 1.27.4
 
 require modernc.org/sqlite v1.60.1
 
