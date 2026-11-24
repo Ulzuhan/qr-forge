@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -93,6 +94,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /robots.txt", s.robots)
 	mux.HandleFunc("GET /sitemap.xml", s.sitemap)
 
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		errorJSON(w, http.StatusNotFound, "Not found")
+	})
+
 	// Las páginas van por un SOLO manejador que parte la ruta a mano.
 	//
 	// Con comodines no se puede: `/{id}/edit` choca con `/assets/` y con
@@ -100,7 +105,7 @@ func (s *Server) Handler() http.Handler {
 	// ninguno es más específico—, y el enrutador de Go entra en pánico al
 	// registrarlos. Las URL son las que están impresas: se conservan, y lo que
 	// cambia es quién las resuelve.
-	mux.HandleFunc("GET /", s.paginas)
+	mux.HandleFunc("/", s.paginas)
 
 	// Los estáticos se atienden ANTES del enrutador, no dentro, para que no
 	// compitan por el mismo prefijo con las rutas de página.
@@ -119,7 +124,23 @@ func (s *Server) Handler() http.Handler {
 			mux.ServeHTTP(w, r)
 		})
 	}
-	return conCabeceras(s.Contando(raiz))
+	return conCabeceras(s.conRecuperacion(s.Contando(raiz)))
+}
+
+func (s *Server) conRecuperacion(siguiente http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("panic en %s %s: %v", r.Method, r.URL.Path, rec)
+				if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+					errorJSON(w, http.StatusInternalServerError, "Internal server error")
+					return
+				}
+				s.errorHTML(w, r, http.StatusInternalServerError, "Something went wrong", "We hit an unexpected problem loading this page. Try reloading in a moment.")
+			}
+		}()
+		siguiente.ServeHTTP(w, r)
+	})
 }
 
 // Contando lleva la cuenta de los manejadores vivos, para poder esperarlos al
@@ -163,13 +184,19 @@ func conCabeceras(siguiente http.Handler) http.Handler {
 
 // csp devuelve la política y el nonce de ESTA respuesta. Un nonce reutilizado
 // entre respuestas deja de servir para nada.
-func csp() (string, string) {
+func csp(extraConnect ...string) (string, string) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		// Sin aleatoriedad no se sirve una página con scripts.
 		return "", ""
 	}
 	nonce := base64.RawStdEncoding.EncodeToString(b)
+	connectSrc := "connect-src 'self'"
+	for _, origin := range extraConnect {
+		if origin != "" {
+			connectSrc += " " + origin
+		}
+	}
 	politica := strings.Join([]string{
 		"default-src 'self'",
 		"script-src 'self' 'nonce-" + nonce + "'",
@@ -177,7 +204,7 @@ func csp() (string, string) {
 		"img-src 'self' data: blob:",
 		"style-src 'self' 'unsafe-inline'",
 		"font-src 'self'",
-		"connect-src 'self'",
+		connectSrc,
 		"base-uri 'none'",
 		"form-action 'self'",
 		"frame-ancestors 'none'",

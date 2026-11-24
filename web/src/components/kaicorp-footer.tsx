@@ -1,27 +1,6 @@
-/* GENERADO por kaicorplabs/tools/sync-theme.sh — NO EDITAR AQUÍ.
-   El original está en el repo kaicorplabs (theme/). */
+/* Adaptado para React+Vite a partir de kaicorplabs-web/theme/kaicorp-footer.tsx. */
 import Link from "../navigation";
 
-/**
- * Pie común de KaiCorp Labs.
- *
- * GENERADO — se copia desde el repo `kaicorplabs` con `tools/sync-theme.sh`.
- * No editar aquí: editar el original y sincronizar.
- *
- * Usa los tokens `--kc-*` y no los de la aplicación, a propósito: el cromado
- * (cabecera y pie) es lo que se reconoce igual de una herramienta a otra,
- * mientras cada app conserva su propia paleta puertas adentro.
- *
- * Lleva enlaces al resto porque quien usa dos de estas aplicaciones no debería
- * tener que teclear la URL de la otra — pero SOLO si quien opera la instancia
- * lo pide con KAICORP_FOOTER_LINKS: en un despliegue ajeno, esos enlaces son
- * publicidad de servicios de otro. Sin la variable queda la atribución sola.
- * La bandera se lee en tiempo de ejecución, no de build, y en las dos pilas:
- * en Next porque esto es un componente de servidor con páginas dinámicas
- * (CSP con nonce), y en las apps React+Vite porque la decide Go al servir el
- * documento y el adaptador sólo lee `data-footer-links`. En ninguna de las
- * dos entra el entorno del servidor en el bundle.
- */
 const SERVICES = [
   { name: "TabUp", url: "https://tabup.kaicorplabs.com", slug: "tabup" },
   { name: "QR-Forge", url: "https://qr.kaicorplabs.com", slug: "qr-forge" },
@@ -31,8 +10,13 @@ const SERVICES = [
   { name: "LinkUp", url: "https://link.kaicorplabs.com", slug: "linkup" },
 ];
 
-export function KaiCorpFooter({ current }: { current?: string }) {
-  const showLinks = Boolean(process.env.KAICORP_FOOTER_LINKS?.trim());
+export function KaiCorpFooter({
+  current,
+  showLinks = false,
+}: {
+  current?: string;
+  showLinks?: boolean;
+}) {
   return (
     <footer
       className="mt-auto border-t px-4 py-5 sm:px-6"
@@ -42,7 +26,7 @@ export function KaiCorpFooter({ current }: { current?: string }) {
         fontFamily: "var(--kc-font-sans)",
       }}
     >
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+      <div className="mx-auto flex w-full max-w-[74rem] flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
         <Link
           href="https://kaicorplabs.com"
           className="flex items-center gap-2 text-xs transition-opacity hover:opacity-80"
@@ -56,10 +40,13 @@ export function KaiCorpFooter({ current }: { current?: string }) {
         </Link>
 
         {showLinks && (
-          <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+          <nav
+            aria-label="KaiCorp Labs services"
+            className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs"
+          >
             {SERVICES.map((s) =>
               s.slug === current ? (
-                <span key={s.slug} aria-current="page" style={{ color: "var(--kc-text-3)" }}>
+                <span key={s.slug} aria-current="page" className="kc-footer-current">
                   {s.name}
                 </span>
               ) : (
@@ -73,6 +60,23 @@ export function KaiCorpFooter({ current }: { current?: string }) {
                 </a>
               )
             )}
+            <span className="kc-footer-sep" aria-hidden="true">
+              ·
+            </span>
+            <a
+              href="https://account.kaicorplabs.com/"
+              className="transition-colors hover:opacity-100"
+              style={{ color: "var(--kc-text-2)" }}
+            >
+              Account
+            </a>
+            <a
+              href="https://kaicorplabs.com/privacy/"
+              className="transition-colors hover:opacity-100"
+              style={{ color: "var(--kc-text-2)" }}
+            >
+              Privacy
+            </a>
           </nav>
         )}
       </div>

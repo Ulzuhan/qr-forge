@@ -15,6 +15,7 @@ import "./styles.css";
 import { KaiCorpAccountMenu } from "./components/kaicorp-account-menu";
 import { KaiCorpFooter } from "./components/kaicorp-footer";
 import { KaiCorpHeader } from "./components/kaicorp-header";
+import { KaiCorpThemeToggle } from "./components/kaicorp-theme-toggle";
 import { contexto } from "./lib/api";
 import { Dashboard } from "./screens/Dashboard";
 import { Detail } from "./screens/Detail";
@@ -41,7 +42,7 @@ function Screen() {
     case "notfound":
       return <NotFound signedIn={Boolean(ctx.email)} />;
     default:
-      return <Landing baseUrl={ctx.publicUrl} />;
+      return <Landing baseUrl={ctx.publicUrl} sessionUrl={ctx.sessionUrl} />;
   }
 }
 
@@ -49,7 +50,12 @@ function App() {
   return (
     <ToastProvider>
       <div className="atmosphere" aria-hidden />
-      <KaiCorpHeader app="QR-Forge">
+      <KaiCorpHeader
+        app="QR-Forge"
+        current="qr-forge"
+        showSwitcher={ctx.enlacesPie}
+        signedIn={Boolean(ctx.email)}
+      >
         {ctx.email ? (
           <>
             <ButtonLink href="/new" variant="primary" size="sm">
@@ -64,13 +70,14 @@ function App() {
             Sign in
           </ButtonLink>
         )}
+        <KaiCorpThemeToggle />
       </KaiCorpHeader>
 
       <main className="flex flex-1 flex-col">
         <Screen />
       </main>
 
-      <KaiCorpFooter current="qr-forge" />
+      <KaiCorpFooter current="qr-forge" showLinks={ctx.enlacesPie} />
     </ToastProvider>
   );
 }
