@@ -49,7 +49,7 @@ function App() {
   return (
     <ToastProvider>
       <div className="atmosphere" aria-hidden />
-      <KaiCorpHeader app="QR-Forge">
+      <KaiCorpHeader app="QR-Forge" current="qr-forge" showSwitcher={ctx.enlacesPie}>
         {ctx.email ? (
           <>
             <ButtonLink href="/new" variant="primary" size="sm">
@@ -70,7 +70,7 @@ function App() {
         <Screen />
       </main>
 
-      <KaiCorpFooter current="qr-forge" />
+      <KaiCorpFooter current="qr-forge" showLinks={ctx.enlacesPie} />
     </ToastProvider>
   );
 }
