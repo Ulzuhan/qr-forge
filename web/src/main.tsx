@@ -15,6 +15,7 @@ import "./styles.css";
 import { KaiCorpAccountMenu } from "./components/kaicorp-account-menu";
 import { KaiCorpFooter } from "./components/kaicorp-footer";
 import { KaiCorpHeader } from "./components/kaicorp-header";
+import { KaiCorpThemeToggle } from "./components/kaicorp-theme-toggle";
 import { contexto } from "./lib/api";
 import { Dashboard } from "./screens/Dashboard";
 import { Detail } from "./screens/Detail";
@@ -49,7 +50,12 @@ function App() {
   return (
     <ToastProvider>
       <div className="atmosphere" aria-hidden />
-      <KaiCorpHeader app="QR-Forge" current="qr-forge" showSwitcher={ctx.enlacesPie}>
+      <KaiCorpHeader
+        app="QR-Forge"
+        current="qr-forge"
+        showSwitcher={ctx.enlacesPie}
+        signedIn={Boolean(ctx.email)}
+      >
         {ctx.email ? (
           <>
             <ButtonLink href="/new" variant="primary" size="sm">
@@ -64,6 +70,7 @@ function App() {
             Sign in
           </ButtonLink>
         )}
+        <KaiCorpThemeToggle />
       </KaiCorpHeader>
 
       <main className="flex flex-1 flex-col">

@@ -1,16 +1,33 @@
-/* Adaptado para React+Vite a partir de kaicorplabs-web/theme/kaicorp-header.tsx. */
 import Link from "../navigation";
 import { KaiCorpAppSwitcher } from "./kaicorp-app-switcher";
 
+/**
+ * Cabecera común de KaiCorp Labs.
+ *
+ * GENERADO — se copia desde el repo `kaicorplabs` con `tools/sync-theme.sh`.
+ * No editar aquí: editar el original y sincronizar.
+ *
+ * El icono + nombre de la herramienta siempre llevan a `/` de la propia app.
+ * El selector de aplicaciones (3×3) a su izquierda permite saltar a otras
+ * herramientas o a `kaicorplabs.com` / `account.kaicorplabs.com` cuando el
+ * despliegue lo activa (`KAICORP_FOOTER_LINKS`).
+ */
 export function KaiCorpHeader({
   app,
   current,
   showSwitcher = false,
+  signedIn = false,
   children,
 }: {
+  /** Nombre del servicio, a la derecha de la marca. */
   app: string;
+  /** Identificador de la herramienta actual dentro del selector de apps. */
   current?: string;
+  /** Muestra el selector de aplicaciones KaiCorp Labs junto a la marca. */
   showSwitcher?: boolean;
+  /** Si el usuario tiene sesión activa, añade /?sso=1 al saltar entre herramientas. */
+  signedIn?: boolean;
+  /** Acciones de la app: menú de cuenta, ajustes, entrar, etc. */
   children?: React.ReactNode;
 }) {
   return (
@@ -22,7 +39,7 @@ export function KaiCorpHeader({
       }}
     >
       <div className="mx-auto flex h-[60px] w-full max-w-[74rem] items-center gap-3 px-4 sm:px-6">
-        {showSwitcher && <KaiCorpAppSwitcher current={current} />}
+        {showSwitcher && <KaiCorpAppSwitcher current={current} signedIn={signedIn} />}
 
         <Link
           href="/"

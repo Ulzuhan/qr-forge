@@ -240,9 +240,11 @@ func parseIntencion(q url.Values) *intencion {
 }
 
 var plantilla = template.Must(template.New("doc").Parse(
-	`<!doctype html><html lang="en" class="h-full antialiased dark"><head>
+	`<!doctype html><html lang="en" class="h-full antialiased"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<script nonce="{{.Nonce}}">(function(){try{var s=localStorage.getItem("color-scheme");if(s==="light"||s==="dark"){var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=s;}}catch(_){}})();</script>
 <title>{{.Titulo}}</title>
 <meta name="description" content="{{.Descripcion}}">
 {{if .NoIndex}}<meta name="robots" content="noindex, nofollow">{{end}}
@@ -274,7 +276,7 @@ var errorPlantilla = template.Must(template.New("error").Parse(`<!doctype html><
 <title>{{.Estado}} — {{.Titulo}} — QR-Forge</title>
 <link rel="icon" href="/kaicorp-mark.png">
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: light dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     min-height: 100svh; display: grid; place-items: center; padding: 24px;
@@ -295,6 +297,14 @@ var errorPlantilla = template.Must(template.New("error").Parse(`<!doctype html><
     font-size: 14px; font-weight: 600; text-decoration: none;
   }
   a:hover { opacity: 0.92; }
+  @media (prefers-color-scheme: light) {
+    body { background: #f8fafc; color: #0f172a; }
+    main { background: #ffffff; border-color: #e2e8f0; }
+    .brand { color: #64748b; }
+    .code { color: #c2410c; }
+    p { color: #475569; }
+    a { background: #0f172a; color: #ffffff; }
+  }
 </style>
 </head><body>
 <main>
