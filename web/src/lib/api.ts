@@ -66,6 +66,7 @@ export function contexto() {
     email: d.email ?? "",
     qrId: d.qrId ?? "",
     cuentaUrl: d.accountUrl ?? null,
+    sessionUrl: d.sessionUrl ?? null,
     publicUrl: d.publicUrl ?? window.location.origin,
     enlacesPie: d.footerLinks === "on",
     intencion: d.intentUrl

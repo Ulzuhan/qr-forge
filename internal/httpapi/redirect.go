@@ -18,7 +18,7 @@ var rePais = regexp.MustCompile(`^[A-Z]{2}$`)
 func (s *Server) redirigir(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !reSlug.MatchString(slug) {
-		s.textoPlano(w, http.StatusNotFound, "404 — QR not found")
+		s.errorHTML(w, r, http.StatusNotFound, "QR code not found", "This short QR link does not exist or may have been removed.")
 		return
 	}
 	ctx, cancel := contextoBreve(r)
@@ -26,26 +26,26 @@ func (s *Server) redirigir(w http.ResponseWriter, r *http.Request) {
 	qr, err := s.almacen.QRPorSlug(ctx, slug)
 	if err != nil {
 		if errors.Is(err, store.ErrNoEncontrado) {
-			s.textoPlano(w, http.StatusNotFound, "404 — QR not found")
+			s.errorHTML(w, r, http.StatusNotFound, "QR code not found", "This short QR link does not exist or may have been removed.")
 			return
 		}
-		s.textoPlano(w, http.StatusInternalServerError, "500 — Internal error")
+		s.errorHTML(w, r, http.StatusInternalServerError, "Something went wrong", "We could not resolve this QR code right now. Try again in a moment.")
 		return
 	}
 	if qr.Type != "dynamic" {
-		s.textoPlano(w, http.StatusBadRequest, "400 — This QR is not a redirect URL")
+		s.errorHTML(w, r, http.StatusBadRequest, "Not a redirect code", "This QR code does not carry a redirect link.")
 		return
 	}
 	if !qr.IsActive {
-		s.textoPlano(w, http.StatusGone, "410 — This QR has been disabled")
+		s.errorHTML(w, r, http.StatusGone, "QR code paused", "This QR code has been disabled by its owner.")
 		return
 	}
 	if qr.ExpiresAt != nil && qr.ExpiresAt.Before(s.ahora().UTC()) {
-		s.textoPlano(w, http.StatusGone, "410 — This QR has expired")
+		s.errorHTML(w, r, http.StatusGone, "QR code expired", "This QR code has reached its expiration date.")
 		return
 	}
 	if qr.DestinationURL == nil {
-		s.textoPlano(w, http.StatusInternalServerError, "500 — Internal error")
+		s.errorHTML(w, r, http.StatusInternalServerError, "Something went wrong", "We could not resolve this QR code right now. Try again in a moment.")
 		return
 	}
 
@@ -171,12 +171,4 @@ func (s *Server) DrenarEscaneos(plazo time.Duration) Drenaje {
 			return d
 		}
 	}
-}
-
-func (s *Server) textoPlano(w http.ResponseWriter, estado int, cuerpo string) {
-	h := w.Header()
-	h.Set("Content-Type", "text/plain; charset=utf-8")
-	h.Set("Cache-Control", "no-store")
-	w.WriteHeader(estado)
-	_, _ = w.Write([]byte(cuerpo))
 }

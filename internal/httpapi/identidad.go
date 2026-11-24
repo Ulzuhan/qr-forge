@@ -35,6 +35,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		errorJSON(w, http.StatusServiceUnavailable, "Sign-in is not configured on this instance")
 		return
 	}
+	if s.usuario(r) != nil {
+		http.Redirect(w, r, auth.SafeNext(r.URL.Query().Get("next")), http.StatusFound)
+		return
+	}
 	verificador, err1 := auth.Aleatorio()
 	estado, err2 := auth.Aleatorio()
 	if err1 != nil || err2 != nil {
@@ -118,7 +122,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		_ = s.almacen.CerrarSesion(r.Context(), c.Value)
 	}
 	s.borrarCookie(w, cookieSesion)
-	siguiente := "/"
+	siguiente := "/?signed_out=1"
 	if s.oidc != nil {
 		if e, err := s.discovery.Endpoints(r.Context(), s.oidc); err == nil && e.EndSession != "" {
 			siguiente = e.EndSession
